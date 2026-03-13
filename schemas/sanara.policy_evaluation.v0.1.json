@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.policy_evaluation.v0.1",
+  "title": "Sanara Policy Evaluation Artifact v0.1",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "environment", "snapshots"],
+  "properties": {
+    "schema_id": { "const": "sanara.policy_evaluation" },
+    "schema_version": { "const": "0.1" },
+    "environment": { "type": "string" },
+    "scan_policy": { "type": "object" },
+    "finding_policy": { "type": "object" },
+    "final_decision": {
+      "type": "object",
+      "properties": {
+        "decision": { "type": "string" },
+        "reason_code": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "snapshots": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "stage": { "type": "string" },
+          "clean": { "type": "boolean" },
+          "scan_policy_review": { "type": "object" },
+          "finding_policy_review": { "type": "object" }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}
+

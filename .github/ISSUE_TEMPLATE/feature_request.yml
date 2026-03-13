@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest an enhancement to Sanara
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Sanara does this request primarily affect?
+      options:
+        - DRC transforms
+        - Policy engine
+        - GitHub Action
+        - Agentic fallback
+        - Advisor
+        - Terraform harness / gates
+        - Scanners / normalization
+        - Artifacts / reporting
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What user problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe expected behavior and rough approach.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: impact
+    attributes:
+      label: Expected impact
+      description: Include tradeoffs, risks, and compatibility notes.

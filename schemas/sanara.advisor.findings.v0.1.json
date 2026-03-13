@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.advisor.findings.v0.1",
+  "title": "Sanara Advisor Findings v0.1",
+  "type": "object",
+  "required": ["schema_id", "schema_version", "status", "findings", "llm"],
+  "properties": {
+    "schema_id": { "type": "string", "const": "sanara.advisor.findings" },
+    "schema_version": { "type": "string", "const": "0.1" },
+    "status": { "type": "string", "enum": ["not_run", "ok"] },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "title", "source", "signal_type", "confidence", "fingerprint"],
+        "properties": {
+          "id": { "type": "string" },
+          "severity": { "type": "string", "enum": ["moderate", "critical"] },
+          "title": { "type": "string" },
+          "description": { "type": "string" },
+          "file_path": { "type": "string" },
+          "resource_type": { "type": "string" },
+          "resource_name": { "type": "string" },
+          "recommendation": { "type": "string" },
+          "source": { "type": "string", "enum": ["heuristic", "llm"] },
+          "signal_type": { "type": "string", "enum": ["heuristic_static", "llm_inference"] },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "fingerprint": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "llm": {
+      "type": "object",
+      "required": ["used", "ok", "message"],
+      "properties": {
+        "used": { "type": "boolean" },
+        "ok": { "type": "boolean" },
+        "message": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

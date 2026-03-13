@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.patch_contract.v0.1",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "sanara_rule_id",
+    "preconditions",
+    "changes",
+    "postconditions",
+    "invariants_checked",
+    "risk",
+    "validation_required"
+  ],
+  "properties": {
+    "schema_id": {"const": "sanara.patch_contract"},
+    "schema_version": {"const": "0.1"},
+    "sanara_rule_id": {"type": "string"},
+    "preconditions": {"type": "array", "items": {"type": "string"}},
+    "changes": {"type": "array", "items": {"type": "string"}},
+    "postconditions": {"type": "array", "items": {"type": "string"}},
+    "invariants_checked": {"type": "array", "items": {"type": "string"}},
+    "risk": {"type": "string"},
+    "validation_required": {"type": "array", "items": {"type": "string"}}
+  }
+}

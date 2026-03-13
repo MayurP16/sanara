@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.finding.v0.1",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "sanara_rule_id",
+    "source",
+    "source_rule_id",
+    "severity",
+    "target",
+    "fingerprint"
+  ],
+  "properties": {
+    "schema_id": {"const": "sanara.finding"},
+    "schema_version": {"const": "0.1"},
+    "sanara_rule_id": {"type": "string"},
+    "source": {"enum": ["checkov"]},
+    "source_rule_id": {"type": "string"},
+    "severity": {"enum": ["critical", "high", "medium", "low"]},
+    "target": {
+      "type": "object",
+      "required": ["module_dir", "file_path", "line_range"],
+      "properties": {
+        "module_dir": {"type": "string"},
+        "file_path": {"type": "string"},
+        "line_range": {"type": "string"}
+      }
+    },
+    "resource_type": {"type": "string"},
+    "resource_name": {"type": "string"},
+    "fingerprint": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+  }
+}

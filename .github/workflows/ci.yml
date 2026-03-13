@@ -1,0 +1,130 @@
+name: ci
+
+on:
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - "CHANGELOG.md"
+  push:
+    branches: [main, qa, dev]
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
+      - "CHANGELOG.md"
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pr-quality:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      - name: Lint
+        run: |
+          ruff check .
+          black --check .
+      - name: Version consistency
+        run: bash scripts/check_version_consistency.sh
+      - name: Knowledge checks
+        run: python scripts/check_repo_knowledge.py
+      - name: Compile check
+        run: python -m compileall sanara tests
+      - name: Tests
+        run: python -m pytest
+
+  python-compat:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      - name: Compile check
+        run: python -m compileall sanara tests
+      - name: Tests
+        run: python -m pytest
+
+  extended-validation:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+      - name: Coverage gate
+        run: python -m pytest --cov=sanara/orchestrator --cov=sanara/drc --cov=sanara/rails --cov-fail-under=70
+      - name: Simulation smoke (all10)
+        run: simulations/sanara-sim3/run_scenario.sh all10 mixed COMMENT_ONLY true
+      - name: Simulation artifact golden assertions
+        run: python scripts/assert_simulation_golden.py simulations/sanara-sim3/artifacts
+      - name: Simulation regression pack
+        run: simulations/sanara-sim3/run_regression_pack.sh
+
+  toolchain-compat:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - terraform: "1.10.5"
+            checkov: "3.2.504"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ matrix.terraform }}
+      - name: Install checkov + sanara
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          pip install "checkov==${{ matrix.checkov }}"
+      - name: Tool versions
+        run: |
+          terraform version
+          checkov --version
+      - name: Compatibility scan
+        run: sanara scan --workspace . --targets tests/fixtures/module_a

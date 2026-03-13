@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.agent_trace.v0.1",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["event"],
+    "properties": {
+      "ts": {"type": "number"},
+      "event": {"type": "string"},
+      "chars": {"type": "integer"},
+      "code": {"type": "integer"}
+    }
+  }
+}

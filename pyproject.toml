@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sanara"
+version = "0.1.0a1"
+description = "Sanara v0.1 PR-native Terraform remediation engine"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML==6.0.2",
+  "jsonschema==4.23.0",
+  "requests==2.32.3",
+  "python-hcl2==5.1.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.3.4",
+  "pytest-cov==6.0.0",
+  "ruff==0.8.6",
+  "black==24.10.0",
+]
+
+[project.scripts]
+sanara = "sanara.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["sanara*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.yml", "*.yaml"]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
