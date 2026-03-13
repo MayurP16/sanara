@@ -176,9 +176,8 @@ The advisor reviews Terraform files changed in the PR and surfaces additional hi
 **What it does:**
 
 - Reviews changed `.tf` files using a structured prompt
-- Returns up to five `critical` or `moderate` severity findings per run
+- Returns `critical` or `moderate` severity findings per run
 - Deduplicates against scanner findings to avoid redundant signals
-- Emits a schema-versioned JSON findings file and a raw response artifact for auditability
 
 **Design constraints:**
 
