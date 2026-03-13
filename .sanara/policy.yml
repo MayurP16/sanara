@@ -1,0 +1,32 @@
+rule_pack_version: v0.1.0-alpha.1
+allow_agentic: false
+llm_context_mode: minimal
+llm_provider: anthropic
+anthropic_model: claude-sonnet-4-6
+openai_model: gpt-4o-mini
+allow_rules: []
+apply_opt_in_rules: []
+require_cmk_for: []
+allow_paths:
+  - "**/*.tf"
+  - "**/*.tfvars"
+deny_paths:
+  - "**/.terraform/**"
+max_diff_lines: 600
+max_runtime_seconds: 1800
+agentic_max_chars: 120000
+allow_globs:
+  - "**/*.tf"
+  - "**/*.tfvars"
+  - "**/*.md"
+deny_globs:
+  - "**/.terraform/**"
+  - "**/*.pem"
+  - "**/*.key"
+plan_required: true
+publish_dry_run: true
+advisor:
+  enabled: true
+  use_llm: false
+  max_findings: 5
+  min_severity: moderate

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.policy_config.v0.1",
+  "title": "Sanara Policy Config v0.1",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "rule_pack_version": { "type": "string" },
+    "environment": { "type": "string" },
+    "allow_agentic": { "type": "boolean" },
+    "plan_required": { "type": "boolean" },
+    "publish_dry_run": { "type": "boolean" },
+    "agentic_max_attempts": { "type": "integer", "minimum": 1, "maximum": 64 },
+    "llm_provider": {
+      "type": "string",
+      "enum": ["anthropic", "openai"]
+    },
+    "llm_context_mode": {
+      "type": "string",
+      "enum": ["minimal", "module", "repo"]
+    },
+    "advisor": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "use_llm": { "type": "boolean" },
+        "max_findings": { "type": "integer", "minimum": 1, "maximum": 20 },
+        "min_severity": { "type": "string", "enum": ["moderate", "critical"] }
+      }
+    },
+    "scan_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "include_ids": { "type": "array", "items": { "type": "string" } },
+        "skip_ids": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "finding_policy": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "auto_fix_allow": { "type": "array", "items": { "type": "string" } },
+        "auto_fix_deny": { "type": "array", "items": { "type": "string" } },
+        "suggest_only": { "type": "array", "items": { "type": "string" } },
+        "ignore": { "type": "array", "items": { "type": "string" } },
+        "hard_fail_on": { "type": "array", "items": { "type": "string" } },
+        "soft_fail_on": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "environments": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  }
+}

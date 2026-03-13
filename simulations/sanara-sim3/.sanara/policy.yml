@@ -1,0 +1,13 @@
+rule_pack_version: v0.1.0-alpha.1
+allow_agentic: true
+llm_provider: anthropic
+anthropic_model: claude-sonnet-4-6
+openai_model: gpt-4o-mini
+plan_required: false
+allow_paths:
+  - "**"
+deny_paths:
+  - "**/.terraform/**"
+max_diff_lines: 600
+apply_opt_in_rules:
+  - aws.ebs.default_encryption_enabled

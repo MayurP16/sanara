@@ -1,0 +1,45 @@
+rule_pack_version: v0.1.0-alpha.1
+
+# Conservative first-run defaults.
+allow_agentic: false
+plan_required: true
+publish_dry_run: true
+
+# LLM settings matter only when allow_agentic is true.
+llm_context_mode: minimal
+llm_provider: anthropic
+anthropic_model: claude-sonnet-4-6
+openai_model: gpt-4o-mini
+agentic_max_attempts: 16
+
+advisor:
+  enabled: true
+  use_llm: false
+  max_findings: 5
+  min_severity: moderate
+
+# Optional scan-scope controls.
+# scan_policy:
+#   include_ids:
+#     - CKV_AWS_70
+#   skip_ids:
+#     - CKV_AWS_144
+
+# Optional finding behavior controls.
+# finding_policy:
+#   suggest_only:
+#     - CKV_AWS_70
+#   ignore:
+#     - CKV_AWS_18
+#   hard_fail_on:
+#     - CKV_AWS_145
+#   soft_fail_on:
+#     - CKV_AWS_18
+
+# Optional environment-specific overrides.
+# environment: dev
+# environments:
+#   prod:
+#     allow_agentic: false
+#   dev:
+#     publish_dry_run: true

@@ -1,0 +1,277 @@
+{
+  "schema_id": "sanara.repair_profiles",
+  "schema_version": "0.1",
+  "rule_pack_version": "v0.1.0-alpha.1",
+  "profiles": {
+    "CKV_AWS_189": {
+      "recipe_text": "Add/ensure kms_key_id = \"alias/aws/ebs\" on the target aws_ebs_volume and keep encrypted = true.",
+      "required_patch_tokens": [
+        "kms_key_id"
+      ]
+    },
+    "CKV_AWS_161": {
+      "recipe_text": "Add/ensure iam_database_authentication_enabled = true on the target aws_db_instance.",
+      "required_patch_tokens": [
+        "iam_database_authentication_enabled"
+      ]
+    },
+    "CKV_AWS_26": {
+      "recipe_text": "Add/ensure kms_master_key_id = \"alias/aws/sns\" on the target aws_sns_topic."
+    },
+    "CKV_AWS_27": {
+      "recipe_text": "Add/ensure kms_master_key_id = \"alias/aws/sqs\" on the target aws_sqs_queue."
+    },
+    "CKV_AWS_50": {
+      "recipe_text": "Add a tracing_config block with mode = \"Active\" inside the target aws_lambda_function resource.",
+      "required_patch_tokens": [
+        "tracing_config",
+        "Active"
+      ]
+    },
+    "CKV_AWS_116": {
+      "recipe_text": "Add a dead_letter_config block with a target_arn attribute inside the target aws_lambda_function. Use a placeholder ARN such as \"arn:aws:sqs:us-east-1:123456789012:dlq\" if no real ARN is available.",
+      "required_patch_tokens": [
+        "dead_letter_config"
+      ]
+    },
+    "CKV_AWS_117": {
+      "recipe_text": "Add a vpc_config block with subnet_ids and security_group_ids inside the target aws_lambda_function. Use placeholder list values if real IDs are not declared in the file.",
+      "required_patch_tokens": [
+        "vpc_config"
+      ]
+    },
+    "CKV_AWS_272": {
+      "recipe_text": "Add/ensure code_signing_config_arn on the target aws_lambda_function. Reference an existing aws_lambda_code_signing_config resource ARN, or add a new one with allowed_publishers.",
+      "required_patch_tokens": [
+        "code_signing_config_arn"
+      ]
+    },
+    "CKV_AWS_293": {
+      "recipe_text": "Add/ensure deletion_protection = true on the target aws_db_instance or aws_rds_cluster.",
+      "required_patch_tokens": [
+        "deletion_protection"
+      ]
+    },
+    "CKV2_AWS_60": {
+      "recipe_text": "Add/ensure deletion_protection = true on the target aws_rds_cluster.",
+      "required_patch_tokens": [
+        "deletion_protection"
+      ]
+    },
+    "CKV_AWS_16": {
+      "recipe_text": "Add/ensure storage_encrypted = true on the target aws_db_instance.",
+      "required_patch_tokens": [
+        "storage_encrypted"
+      ]
+    },
+    "CKV_AWS_133": {
+      "recipe_text": "Set backup_retention_period = 7 on the aws_db_instance resource to retain automated backups for 7 days.",
+      "required_patch_tokens": [
+        "backup_retention_period"
+      ]
+    },
+    "CKV_AWS_162": {
+      "recipe_text": "Add/ensure performance_insights_enabled = true on the target aws_db_instance.",
+      "required_patch_tokens": [
+        "performance_insights_enabled"
+      ]
+    },
+    "CKV_AWS_129": {
+      "recipe_text": "Add/ensure enabled_cloudwatch_logs_exports contains the appropriate log types (e.g. [\"audit\", \"error\", \"general\", \"slowquery\"] for MySQL, or [\"postgresql\", \"upgrade\"] for PostgreSQL) on the target aws_db_instance.",
+      "required_patch_tokens": [
+        "enabled_cloudwatch_logs_exports"
+      ]
+    },
+    "CKV_AWS_36": {
+      "recipe_text": "Add/ensure enable_log_file_validation = true on the target aws_cloudtrail resource.",
+      "required_patch_tokens": [
+        "enable_log_file_validation"
+      ]
+    },
+    "CKV_AWS_118": {
+      "recipe_text": "Add/ensure monitoring_interval is set to 1, 5, 10, 15, 30, or 60 on aws_db_instance or aws_rds_cluster_instance, and set monitoring_role_arn to an IAM role ARN for RDS enhanced monitoring.",
+      "required_patch_tokens": [
+        "monitoring_interval",
+        "monitoring_role_arn"
+      ]
+    },
+    "CKV_AWS_67": {
+      "recipe_text": "Add/ensure is_multi_region_trail = true on the target aws_cloudtrail resource.",
+      "required_patch_tokens": [
+        "is_multi_region_trail"
+      ]
+    },
+    "CKV_AWS_35": {
+      "recipe_text": "Add/ensure kms_key_id on aws_cloudtrail and reference a customer-managed KMS key ARN.",
+      "required_patch_tokens": [
+        "kms_key_id"
+      ]
+    },
+    "CKV_AWS_51": {
+      "recipe_text": "Add/ensure image_tag_mutability = \"IMMUTABLE\" on aws_ecr_repository to prevent tag overwrite.",
+      "required_patch_tokens": [
+        "image_tag_mutability"
+      ]
+    },
+    "CKV_AWS_163": {
+      "recipe_text": "Add an image_scanning_configuration block with scan_on_push = true inside the target aws_ecr_repository resource.",
+      "required_patch_tokens": [
+        "image_scanning_configuration",
+        "scan_on_push"
+      ]
+    },
+    "CKV_AWS_136": {
+      "recipe_text": "Add an encryption_configuration block with encryption_type = \"KMS\" inside the target aws_ecr_repository. Optionally add kms_key referencing an existing aws_kms_key resource ARN.",
+      "required_patch_tokens": [
+        "encryption_configuration",
+        "encryption_type"
+      ]
+    },
+    "CKV2_AWS_41": {
+      "recipe_text": "Add a metadata_options block with http_tokens = \"required\" and http_endpoint = \"enabled\" inside the target aws_instance resource.",
+      "required_patch_tokens": [
+        "metadata_options",
+        "http_tokens"
+      ]
+    },
+    "CKV_AWS_79": {
+      "recipe_text": "Add a metadata_options block to the aws_instance resource with http_tokens = \"required\" and http_endpoint = \"enabled\" to enforce IMDSv2 and block IMDSv1.",
+      "required_patch_tokens": [
+        "metadata_options",
+        "http_tokens",
+        "required"
+      ]
+    },
+    "CKV_AWS_8": {
+      "recipe_text": "Add/ensure ebs_optimized = true on the target aws_instance.",
+      "required_patch_tokens": [
+        "ebs_optimized"
+      ]
+    },
+    "CKV_AWS_71": {
+      "recipe_text": "Add/ensure encrypted = true on the target aws_redshift_cluster.",
+      "required_patch_tokens": [
+        "encrypted"
+      ]
+    },
+    "CKV_AWS_141": {
+      "recipe_text": "Add/ensure enhanced_vpc_routing = true on the target aws_redshift_cluster.",
+      "required_patch_tokens": [
+        "enhanced_vpc_routing"
+      ]
+    },
+    "CKV_AWS_87": {
+      "recipe_text": "Add a logging block with enable = true and a target bucket_name on the target aws_redshift_cluster.",
+      "required_patch_tokens": [
+        "logging",
+        "enable"
+      ]
+    },
+    "CKV_AWS_43": {
+      "recipe_text": "Add/ensure encryption_type = \"KMS\" and kms_key_id = \"alias/aws/kinesis\" on the target aws_kinesis_stream.",
+      "required_patch_tokens": [
+        "encryption_type",
+        "kms_key_id"
+      ]
+    },
+    "CKV_AWS_83": {
+      "recipe_text": "Add an encrypt_at_rest block with enabled = true inside the target aws_elasticsearch_domain or aws_opensearch_domain resource.",
+      "required_patch_tokens": [
+        "encrypt_at_rest",
+        "enabled"
+      ]
+    },
+    "CKV_AWS_86": {
+      "recipe_text": "Add a node_to_node_encryption block with enabled = true inside the target aws_elasticsearch_domain or aws_opensearch_domain resource.",
+      "required_patch_tokens": [
+        "node_to_node_encryption",
+        "enabled"
+      ]
+    },
+    "CKV_AWS_84": {
+      "recipe_text": "Add a log_publishing_options block inside the target aws_elasticsearch_domain or aws_opensearch_domain. Set log_type to one of INDEX_SLOW_LOGS, SEARCH_SLOW_LOGS, or ES_APPLICATION_LOGS, and reference a cloudwatch_log_group_arn.",
+      "required_patch_tokens": [
+        "log_publishing_options"
+      ]
+    },
+    "CKV2_AWS_59": {
+      "recipe_text": "Add a domain_endpoint_options block with enforce_https = true inside the target aws_elasticsearch_domain or aws_opensearch_domain.",
+      "required_patch_tokens": [
+        "domain_endpoint_options",
+        "enforce_https"
+      ]
+    },
+    "CKV_AWS_80": {
+      "recipe_text": "Add an encryption_info block containing an encryption_in_transit block with client_broker = \"TLS\" inside the target aws_msk_cluster.",
+      "required_patch_tokens": [
+        "encryption_in_transit",
+        "client_broker"
+      ]
+    },
+    "CKV_AWS_81": {
+      "recipe_text": "Add an encryption_info block containing an encryption_at_rest block with data_volume_kms_key_id = \"alias/aws/kafka\" inside the target aws_msk_cluster.",
+      "required_patch_tokens": [
+        "encryption_at_rest",
+        "data_volume_kms_key_id"
+      ]
+    },
+    "CKV_AWS_149": {
+      "recipe_text": "Set kms_key_id on aws_secretsmanager_secret to a customer-managed KMS key ARN (not alias/aws/secretsmanager).",
+      "required_patch_tokens": [
+        "kms_key_id"
+      ]
+    },
+    "CKV2_AWS_57": {
+      "recipe_text": "Enable rotation on the target aws_secretsmanager_secret by adding rotation_rules with automatically_after_days = 30. A rotation lambda ARN must be referenced \u2014 add an aws_secretsmanager_secret_rotation resource if not already present.",
+      "required_patch_tokens": [
+        "rotation_rules"
+      ]
+    },
+    "CKV_AWS_166": {
+      "recipe_text": "Add/ensure kms_key_arn on the target aws_backup_vault. Reference an existing aws_kms_key resource ARN, or use \"alias/aws/backup\".",
+      "required_patch_tokens": [
+        "kms_key_arn"
+      ]
+    },
+    "CKV_AWS_147": {
+      "recipe_text": "Add/ensure encryption_key on the target aws_codebuild_project. Reference an existing aws_kms_key resource ARN, or use \"alias/aws/s3\".",
+      "required_patch_tokens": [
+        "encryption_key"
+      ]
+    },
+    "CKV_AWS_78": {
+      "recipe_text": "Add/ensure disable_api_termination = true on the target aws_instance to protect against accidental termination.",
+      "required_patch_tokens": [
+        "disable_api_termination"
+      ]
+    },
+    "CKV2_AWS_21": {
+      "recipe_text": "Set backup_retention_period = 7 on the RDS cluster to retain automated backups for 7 days.",
+      "required_patch_tokens": [
+        "backup_retention_period"
+      ]
+    },
+    "CKV_AWS_274": {
+      "recipe_text": "Remove AWS AdministratorAccess managed policy attachments from IAM users/roles/groups and replace with least-privilege policies.",
+      "required_patch_tokens": [
+        "policy_arn"
+      ]
+    },
+    "terraform_required_version": {
+      "recipe_text": "Add a terraform block with a required_version constraint (e.g. \">= 1.0.0\") to enforce minimum Terraform version. Place it at the top of the main.tf or versions.tf file.",
+      "required_patch_tokens": [
+        "required_version"
+      ]
+    },
+    "terraform_required_providers": {
+      "recipe_text": "Add a required_providers block inside the terraform block specifying the AWS provider source and version constraint (e.g. hashicorp/aws >= 4.0).",
+      "required_patch_tokens": [
+        "required_providers"
+      ]
+    },
+    "terraform_deprecated_interpolation": {
+      "recipe_text": "Replace deprecated string-only interpolations like \"${var.foo}\" with direct references like var.foo.",
+      "required_patch_tokens": []
+    }
+  }
+}

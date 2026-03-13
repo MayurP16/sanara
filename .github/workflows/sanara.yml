@@ -1,0 +1,93 @@
+name: sanara
+
+on:
+  pull_request:
+    paths:
+      - "sanara/**"
+      - "rules/**"
+      - "simulations/sanara-sim3/**"
+      - ".sanara/**"
+      - ".github/workflows/sanara.yml"
+      - "action.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: sanara-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  fixture-integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+          cache-dependency-path: pyproject.toml
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.10.5"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          pip install "checkov==3.2.504"
+
+      - name: Prepare fixture workspace
+        run: |
+          FIXTURE_DIR="$RUNNER_TEMP/sanara-fixture"
+          mkdir -p "$FIXTURE_DIR/.sanara"
+          cp simulations/sanara-sim3/*.tf "$FIXTURE_DIR"/
+          cp .sanara/policy.yml "$FIXTURE_DIR/.sanara/policy.yml"
+          cat > "$FIXTURE_DIR/.sanara/harness.yml" <<'YAML'
+          version: 1
+          runs:
+            - name: sim3
+              working_dir: .
+              init:
+                backend: false
+              plan:
+                refresh: false
+          YAML
+          cat > "$FIXTURE_DIR/event.json" <<'JSON'
+          {
+            "event_name": "workflow_dispatch",
+            "sender": {"login": "sanara-fixture"},
+            "repository": {"full_name": "local/sanara-fixture"}
+          }
+          JSON
+
+      - name: Run Sanara on fixture workspace
+        env:
+          GITHUB_EVENT_NAME: workflow_dispatch
+          GITHUB_SHA: ""
+          GITHUB_BASE_REF: ""
+          GITHUB_HEAD_REF: ""
+          INPUT_ALLOW_AGENTIC: "false"
+          INPUT_LLM_CONTEXT_MODE: "minimal"
+          INPUT_LLM_PROVIDER: "anthropic"
+          INPUT_ANTHROPIC_MODEL: "claude-sonnet-4-6"
+          INPUT_OPENAI_MODEL: "gpt-4o-mini"
+          INPUT_PLAN_REQUIRED: "true"
+          INPUT_PUBLISH_DRY_RUN: "true"
+        run: |
+          python -m sanara.cli run \
+            --event "$RUNNER_TEMP/sanara-fixture/event.json" \
+            --workspace "$RUNNER_TEMP/sanara-fixture" \
+            --artifacts "$RUNNER_TEMP/sanara-artifacts"
+
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sanara-artifacts
+          path: ${{ runner.temp }}/sanara-artifacts

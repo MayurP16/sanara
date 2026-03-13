@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.targeted_results.v0.1",
+  "type": "object",
+  "required": [
+    "clean",
+    "remaining",
+    "remaining_mapped",
+    "remaining_uncovered",
+    "attempted_rules"
+  ],
+  "properties": {
+    "clean": {"type": "boolean"},
+    "remaining": {"type": "array", "items": {"type": "object"}},
+    "remaining_mapped": {"type": "array", "items": {"type": "object"}},
+    "remaining_uncovered": {"type": "array", "items": {"type": "object"}},
+    "attempted_rules": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

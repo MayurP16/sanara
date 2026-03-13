@@ -1,0 +1,29 @@
+version: 1
+runs:
+  - name: main
+    # Change this to the Terraform root Sanara should validate.
+    working_dir: .
+    init:
+      backend: false
+      # Optional extra init flags or backend config for real root stacks.
+      # args:
+      #   - -input=false
+      # backend_config:
+      #   bucket: terraform-sbx-state
+      #   key: path/to/terraform.tfstate
+      #   region: us-east-1
+    validate:
+      # Optional extra validate args.
+      # args:
+      #   - -no-color
+      args: []
+    plan:
+      refresh: false
+      # Optional extra plan args.
+      # args:
+      #   - -input=false
+      #   - -no-color
+      args: []
+    timeout_seconds: 300
+    env: {}
+    var_files: []
