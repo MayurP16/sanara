@@ -1,0 +1,6 @@
+scenarios:
+  - name: all10-mixed
+    mode: all10
+    profile: mixed
+    expected_decision: COMMENT_ONLY
+    expected_clean: true

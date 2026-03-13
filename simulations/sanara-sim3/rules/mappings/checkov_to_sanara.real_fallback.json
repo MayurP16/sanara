@@ -1,0 +1,17 @@
+{
+  "rule_pack_version": "v0.1.0-sim-real-fallback",
+  "mappings": {
+    "CKV2_AWS_6": "aws.s3.public_access_block",
+    "CKV_AWS_19": "aws.s3.sse_default",
+    "CKV_AWS_21": "aws.s3.versioning_enabled",
+    "CKV_AWS_17": "aws.rds.not_public",
+    "CKV_AWS_3": "aws.ebs.encrypted",
+    "CKV_AWS_106": "aws.ebs.default_encryption_enabled",
+    "CKV_AWS_26": "aws.sns.encrypted",
+    "CKV_AWS_27": "aws.sqs.encrypted",
+    "CKV_AWS_28": "aws.dynamodb.pitr_enabled",
+    "CKV_AWS_158": "aws.cloudwatch.log_group_encrypted",
+    "CKV_AWS_161": "aws.rds.not_public",
+    "CKV_AWS_189": "aws.ebs.encrypted"
+  }
+}

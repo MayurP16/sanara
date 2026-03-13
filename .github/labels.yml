@@ -1,0 +1,35 @@
+- name: bug
+  color: "d73a4a"
+  description: Something in Sanara behaved incorrectly.
+
+- name: enhancement
+  color: "0e8a16"
+  description: New capability or meaningful improvement.
+
+- name: docs
+  color: "1d76db"
+  description: Documentation-only change or request.
+
+- name: security
+  color: "b60205"
+  description: Security-related issue, fix, or hardening work.
+
+- name: breaking
+  color: "5319e7"
+  description: Breaking change that may require rollout care.
+
+- name: no-changelog
+  color: "cfd3d7"
+  description: Exempt from changelog requirements.
+
+- name: question
+  color: "d876e3"
+  description: Usage or behavior question.
+
+- name: good first issue
+  color: "7057ff"
+  description: Good starter issue for new contributors.
+
+- name: help wanted
+  color: "008672"
+  description: Maintainers would welcome community help on this.

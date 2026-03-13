@@ -1,0 +1,26 @@
+{
+  "rule_pack_version": "v0.1.0-alpha.1",
+  "mappings": {
+    "CKV2_AWS_6": "aws.s3.public_access_block",
+    "CKV2_AWS_64": "aws.kms.policy_present",
+    "CKV_AWS_20": "aws.s3.acl_private",
+    "CKV_AWS_19": "aws.s3.sse_default",
+    "CKV_AWS_21": "aws.s3.versioning_enabled",
+    "CKV_AWS_18": "aws.s3.access_logging_enabled",
+    "CKV_AWS_53": "aws.s3.public_access_block",
+    "CKV_AWS_54": "aws.s3.public_access_block",
+    "CKV_AWS_55": "aws.s3.public_access_block",
+    "CKV_AWS_56": "aws.s3.public_access_block",
+    "CKV_AWS_70": "aws.s3.policy_secure_transport",
+    "CKV_AWS_145": "aws.s3.sse_kms_default",
+    "CKV_AWS_17": "aws.rds.not_public",
+    "CKV_AWS_3": "aws.ebs.encrypted",
+    "CKV_AWS_106": "aws.ebs.default_encryption_enabled",
+    "CKV_AWS_26": "aws.sns.encrypted",
+    "CKV_AWS_27": "aws.sqs.encrypted",
+    "CKV_AWS_119": "aws.dynamodb.kms_cmk_encrypted",
+    "CKV_AWS_7": "aws.kms.rotation_enabled",
+    "CKV_AWS_28": "aws.dynamodb.pitr_enabled",
+    "CKV_AWS_158": "aws.cloudwatch.log_group_encrypted"
+  }
+}
