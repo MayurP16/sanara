@@ -49,13 +49,13 @@ Before adding Sanara to a repository, confirm you have:
 
 ## Quick start
 
-Sanara requires three files in your repository:
+Sanara requires one file in your repository, with two optional configuration files:
 
-| File | Purpose |
-|------|---------|
-| `.github/workflows/sanara.yml` | GitHub Actions workflow |
-| `.sanara/policy.yml` | Controls remediation behavior — which findings to fix, suggest, or skip |
-| `.sanara/harness.yml` | Controls how Terraform is initialized, validated, and planned |
+| File | Required | Purpose |
+|------|----------|---------|
+| `.github/workflows/sanara.yml` | Required | GitHub Actions workflow |
+| `.sanara/policy.yml` | Optional | Controls remediation behavior — which findings to fix, suggest, or skip |
+| `.sanara/harness.yml` | Optional | Controls how Terraform is initialized, validated, and planned |
 
 Starter templates for all three are in the [templates/](templates/) directory. Copy them into your repository and adjust to your environment.
 
