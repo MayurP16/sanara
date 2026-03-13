@@ -1,45 +1,102 @@
+# policy.yml controls how Sanara behaves in your repository.
+# Place this file at .sanara/policy.yml in your repository.
+#
+# Start with publish_dry_run: true on first rollout to preview what Sanara
+# would do without opening any PRs. Switch to false once you're comfortable.
+
 rule_pack_version: v0.1.0-alpha.1
 
-# Conservative first-run defaults.
+# --- Remediation behavior ---
+
+# allow_agentic: enable LLM-assisted fallback for findings outside the
+# deterministic ruleset. Requires ANTHROPIC_API_KEY or OPENAI_API_KEY.
 allow_agentic: false
+
+# plan_required: run terraform plan as part of patch validation.
+# Requires valid cloud credentials in the workflow environment.
 plan_required: true
+
+# publish_dry_run: validate and log what would be remediated, but do not
+# open PRs. Set to false to enable PR creation.
 publish_dry_run: true
 
-# LLM settings matter only when allow_agentic is true.
+# --- LLM settings (only apply when allow_agentic: true) ---
+
+# llm_context_mode: how much Terraform context to send to the model.
+#   minimal — changed files only (fastest, lowest token usage)
+#   module   — changed files plus their module dependencies
+#   repo     — full repository Terraform context
 llm_context_mode: minimal
-llm_provider: anthropic
+
+llm_provider: anthropic          # anthropic or openai
 anthropic_model: claude-sonnet-4-6
 openai_model: gpt-4o-mini
-agentic_max_attempts: 16
+agentic_max_attempts: 5          # max model attempts per finding per run
+
+# --- LLM Advisor ---
+# The advisor reviews changed .tf files after remediation and surfaces
+# additional security findings outside the deterministic ruleset.
+# Findings are advisory only and never block PR creation.
 
 advisor:
   enabled: true
-  use_llm: false
+  use_llm: false           # set to true to enable LLM-powered findings
   max_findings: 5
-  min_severity: moderate
+  min_severity: moderate   # moderate or critical
 
-# Optional scan-scope controls.
+# --- Finding policy ---
+# Control which findings Sanara auto-fixes, suggests, or ignores.
+# If omitted, Sanara applies deterministic fixes to all supported findings.
+
+# finding_policy:
+#
+#   # Explicitly allow auto-fix for specific rule IDs.
+#   # Useful for a controlled rollout — start narrow and expand over time.
+#   auto_fix_allow:
+#     - CKV_AWS_21    # S3 versioning
+#     - CKV_AWS_53    # S3 public access block
+#     - CKV_AWS_54    # S3 public access block (ACL)
+#     - CKV_AWS_55    # S3 public access block (policy)
+#     - CKV_AWS_56    # S3 public access block (ignore public ACL)
+#     - CKV_AWS_145   # S3 encryption
+#     - CKV2_AWS_6    # S3 public access block (bucket level)
+#     - CKV_AWS_7     # KMS key rotation
+#     - CKV_AWS_28    # DynamoDB PITR
+#     - CKV_AWS_119   # DynamoDB CMK encryption
+#
+#   # Surface findings as PR comments rather than applying fixes.
+#   suggest_only:
+#     - CKV_AWS_20    # S3 ACL — suggest only, do not auto-fix
+#
+#   # Silently skip these findings.
+#   ignore:
+#     - CKV_AWS_144
+#
+#   # Fail the run if these findings are present (do not remediate).
+#   hard_fail_on:
+#     - CKV_AWS_145
+#
+#   # Warn but continue if these findings are present.
+#   soft_fail_on:
+#     - CKV_AWS_18
+
+# --- Scan scope ---
+# Restrict which findings Checkov reports to Sanara.
+
 # scan_policy:
 #   include_ids:
 #     - CKV_AWS_70
 #   skip_ids:
 #     - CKV_AWS_144
 
-# Optional finding behavior controls.
-# finding_policy:
-#   suggest_only:
-#     - CKV_AWS_70
-#   ignore:
-#     - CKV_AWS_18
-#   hard_fail_on:
-#     - CKV_AWS_145
-#   soft_fail_on:
-#     - CKV_AWS_18
+# --- Environment overrides ---
+# Apply different policy settings per environment.
 
-# Optional environment-specific overrides.
 # environment: dev
 # environments:
 #   prod:
 #     allow_agentic: false
+#     publish_dry_run: false
 #   dev:
+#     allow_agentic: true
 #     publish_dry_run: true

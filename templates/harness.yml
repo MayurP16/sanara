@@ -1,29 +1,56 @@
 version: 1
+
+# harness.yml tells Sanara how to initialize, validate, and plan your Terraform.
+# Place this file at .sanara/harness.yml in your repository.
+#
+# Sanara runs these steps on the patched Terraform to verify fixes are clean
+# before opening a remediation PR. If any step fails, the patch is not published.
+#
+# Multiple roots are supported — add additional entries under `runs` for
+# repositories with more than one Terraform root.
+
 runs:
-  - name: main
-    # Change this to the Terraform root Sanara should validate.
+  - name: root
+    # Path to the Terraform root to validate, relative to the repository root.
+    # For a monorepo, add multiple entries (e.g. infra/vpc, infra/ecs).
     working_dir: .
+
     init:
+      # Set backend: true when using a real remote backend (S3, GCS, etc.).
+      # Set backend: false for local state or to skip backend initialization.
       backend: false
-      # Optional extra init flags or backend config for real root stacks.
-      # args:
-      #   - -input=false
+      args:
+        - -input=false
+      # Remote S3 backend — uncomment and configure if backend: true.
       # backend_config:
-      #   bucket: terraform-sbx-state
+      #   bucket: my-terraform-state-bucket
       #   key: path/to/terraform.tfstate
       #   region: us-east-1
+      #   dynamodb_table: terraform-locks
+
     validate:
-      # Optional extra validate args.
-      # args:
-      #   - -no-color
-      args: []
+      args:
+        - -no-color
+
     plan:
+      # refresh: true re-fetches real infrastructure state from AWS.
+      # Requires valid credentials in the workflow environment.
+      # Set to false for faster local-only validation without live state.
       refresh: false
-      # Optional extra plan args.
-      # args:
-      #   - -input=false
-      #   - -no-color
-      args: []
+      args:
+        - -input=false
+        - -no-color
+        # Uncomment to write the plan to a file for downstream steps:
+        # - -out=tfplan
+
+    # Maximum time in seconds Sanara will wait for Terraform operations.
     timeout_seconds: 300
-    env: {}
-    var_files: []
+
+    # Optional: pass .tfvars files into the plan.
+    # var_files:
+    #   - env/dev.tfvars
+
+    # Optional: set environment variables for Terraform during validation.
+    # env:
+    #   TF_VAR_environment: dev
+    #   TF_VAR_region: us-east-1
