@@ -8,7 +8,7 @@ Global invariants:
 - Common widening patterns are blocked, including public CIDRs, public accessibility, and obvious wildcard IAM policy fragments.
 
 Notes:
-- IAM edits are no longer globally blocked by rails in v0.1 alpha. Safety is enforced via path allowlists, diff budget, no-deletion, and widening-pattern checks.
+- Safety is enforced via path allowlists, diff budget, no-deletion, and widening-pattern checks.
 - Teams that want to disallow IAM mutations should enforce that via policy/allowlist path scoping and review policy.
 - Rails are pattern-based safety checks, not a full semantic security analyzer.
 

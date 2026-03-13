@@ -4,21 +4,99 @@ Thanks for contributing.
 
 ## Development setup
 
-1. Use Python 3.11.
-2. Install dependencies:
+### Prerequisites
+
+Before setting up the project locally, make sure you have:
+
+- **Python 3.11+** — required; check with `python --version`
+- **Terraform** — required for validation and plan checks; install via [tfenv](https://github.com/tfutils/tfenv) or the [official installer](https://developer.hashicorp.com/terraform/install)
+- **Checkov** — required for scanning; not bundled in the package, install separately:
 
 ```bash
-python -m pip install -e '.[dev]'
+pip install checkov==3.2.504
 ```
 
-3. Run a basic test pass:
+If you have Checkov installed at a non-default path, set `SANARA_CHECKOV_BIN` to point to it:
+
+```bash
+export SANARA_CHECKOV_BIN=/path/to/checkov
+```
+
+### Install
+
+1. Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+2. Install the package with dev dependencies:
+
+```bash
+pip install -e '.[dev]'
+```
+
+If you are working inside the project virtual environment, `.venv/bin/python -m ...` is often the most reliable form.
+
+### Run tests
 
 ```bash
 python -m pytest -q
 python scripts/check_repo_knowledge.py
 ```
 
-If you are working inside the project virtual environment, `.venv/bin/python -m ...` is often the most reliable form.
+### Lint and format
+
+```bash
+ruff check sanara tests
+black --check sanara tests
+```
+
+### Local dry run
+
+Use the provided helper script to run Sanara against this repository locally without opening any PRs:
+
+```bash
+bash scripts/dry_run_local.sh
+```
+
+This generates `.sanara/event.local.json` and runs `python -m sanara.cli run` with `INPUT_PUBLISH_DRY_RUN=true`. Artifacts are written to `./artifacts`.
+
+To run against a different workspace or target repository, pass paths explicitly:
+
+```bash
+bash scripts/dry_run_local.sh /path/to/event.json /path/to/artifacts
+```
+
+For a full end-to-end dry run with explicit environment variable control:
+
+```bash
+GITHUB_EVENT_NAME=pull_request \
+GITHUB_RUN_ID=local-run \
+GITHUB_ACTOR=local-dev \
+INPUT_ALLOW_AGENTIC=false \
+INPUT_PUBLISH_DRY_RUN=true \
+INPUT_PLAN_REQUIRED=false \
+python -m sanara.cli run \
+  --event .sanara/event.local.json \
+  --workspace . \
+  --artifacts artifacts
+```
+
+Set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` in your environment if testing LLM features.
+
+### Simulation harness
+
+The `simulations/sanara-sim3/` directory contains a full regression harness with pre-built Terraform fixtures:
+
+```bash
+make sim-regression        # full regression pack
+make sim-all10             # all-10 deterministic scenario
+make sim-fallback          # LLM fallback scenario
+```
+
+See [simulations/sanara-sim3/README.md](simulations/sanara-sim3/README.md) for details.
 
 ## Pull requests
 

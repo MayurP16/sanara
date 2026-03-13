@@ -17,9 +17,9 @@ Sanara is built around a different idea: **remediation should be as trustworthy 
 That means:
 
 - **Deterministic fixes first.** Known findings get known fixes — not suggestions, not diffs that need interpretation. A structured transform is applied, the result is validated, and the patch either passes or it doesn't.
-- **Validation before publish.** Every patch runs through Terraform format and init checks, then a targeted rescan of the affected resources. Sanara does not open a PR for a fix it cannot verify.
-- **A clear audit trail.** Every run produces an artifact bundle with the findings, the patch, the validation results, and the remediation decision. Teams can review what changed and why without digging through logs.
-- **Policy-controlled behavior.** Scope, severity thresholds, agentic mode, publish controls — all configurable per repository. Sanara does what you authorize, nothing more.
+- **Validation before publish.** Every patch runs through Terraform validate and plan checks. Sanara does not open a PR for a fix it cannot verify.
+- **A clear audit trail.** Every run produces an artifact bundle with the findings, the patch, the validation results, and the remediation decision. Teams can review what changed and why.
+- **Policy-controlled behavior.** Scope, severity thresholds, agentic mode, publish controls — all configurable per repository.
 - **LLM assistance without LLM risk.** When a finding falls outside the deterministic ruleset, an optional model-assisted path can fill the gap — but it stays behind the same validation gates and explicit opt-in requirements as everything else.
 
 The result is a remediation path that fits into real pull request workflows: reviewable, repeatable, and safe to run in CI.
@@ -30,12 +30,10 @@ Sanara runs as a GitHub Action on pull requests. When triggered, it:
 
 1. **Scans** — runs Checkov against the Terraform in the PR and normalizes findings into a stable internal schema
 2. **Remediates** — applies deterministic fixes for known findings; each fix is a structured transform, not a generated suggestion
-3. **Validates** — runs `terraform fmt`, `terraform init`, and a targeted rescan of the patched resources to confirm the fix is clean
-4. **Publishes** — opens or updates a PR with the patch only if validation passes; findings that fail validation are skipped, not silently included
+3. **Validates** — runs `terraform fmt`, `terraform init`, `terraform plan` and a targeted rescan of the patched resources to confirm the fix is clean
+4. **Publishes** — opens or updates a PR with the patch only if validation passes; findings that fail validation are skipped
 5. **Advises** — optionally runs the LLM Advisor on changed `.tf` files to surface additional security concerns outside the deterministic ruleset
 6. **Audits** — writes a full artifact bundle per run: findings, patch, validation results, advisor output, and remediation decisions
-
-Steps 1–4 are gates: each must succeed before the next runs. Steps 5 and 6 are non-blocking — advisor findings and audit artifacts are always written, but they do not affect whether a PR is opened or merged.
 
 ## Prerequisites
 
@@ -45,7 +43,8 @@ Before adding Sanara to a repository, confirm you have:
 - GitHub Actions enabled
 - Familiarity with [Checkov](https://www.checkov.io/) findings is helpful but not required — Sanara normalizes findings internally
 - AWS credentials available as repository secrets (only required if `plan_required: true`)
-- An `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` secret (only required if LLM fallback or the LLM Advisor is enabled)
+- A `GITHUB_TOKEN` with write permissions — [create a fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) and add it as a repository secret
+- An `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — create a key from your [Anthropic Console](https://console.anthropic.com/) or [OpenAI dashboard](https://platform.openai.com/api-keys) and add it as a repository secret (only required if LLM fallback or the LLM Advisor is enabled)
 
 ## Quick start
 
@@ -101,6 +100,7 @@ jobs:
         with:
           publish_dry_run: "true"  # preview mode — switch to "false" once validated
           allow_agentic: "false"   # set to "true" to enable LLM fallback
+          plan_required: "true"    # set to "fasle" to disable terraform plan
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -169,25 +169,9 @@ Governance controls apply in LLM mode just as in deterministic mode:
 
 ### LLM Advisor
 
-Sanara includes an optional **LLM Advisor** that provides supplementary security guidance beyond what the deterministic scanner detects. It runs as a non-blocking, advisory-only stage after remediation is complete.
+Sanara includes an optional **LLM Advisor** that provides supplementary security guidance beyond what the deterministic scanner and LLM fallback detects. It runs as a non-blocking, advisory-only stage after remediation is complete.
 
 The advisor reviews Terraform files changed in the PR and surfaces additional high-signal security findings that fall outside the Checkov ruleset or require broader context to identify. Results are written to an artifact bundle and can be surfaced in the PR summary, but they never block publish or force additional remediation cycles.
-
-**What it does:**
-
-- Reviews changed `.tf` files using a structured prompt
-- Returns `critical` or `moderate` severity findings per run
-- Deduplicates against scanner findings to avoid redundant signals
-
-**Design constraints:**
-
-- Disabled by default — opt in via `advisor_use_llm: true` in policy
-- Bring your own model key (`ANTHROPIC_API_KEY` or `OPENAI_API_KEY`)
-- Supports Anthropic and OpenAI providers with configurable models
-- Findings are advisory only; they do not affect whether a PR is created or merged
-- All outputs are schema-validated and included in the artifact bundle for review
-
-For configuration options see [docs/configuration-reference.md](docs/configuration-reference.md). For data handling details see [docs/security/llm-data-handling.md](docs/security/llm-data-handling.md).
 
 ## Local development
 
@@ -195,13 +179,10 @@ For configuration options see [docs/configuration-reference.md](docs/configurati
 pip install -e .[dev]
 python -m pytest
 python scripts/check_repo_knowledge.py  # validates that all Checkov rule IDs in the ruleset have corresponding rule implementations
-python -m sanara.cli run --event .sanara/event.json --workspace . --artifacts artifacts
+bash scripts/dry_run_local.sh           # dry run against this workspace; artifacts written to ./artifacts
 ```
 
-Useful local references:
-- simulation workspace: [simulations/sanara-sim3/README.md](simulations/sanara-sim3/README.md)
-- configuration guide: [docs/configuration.md](docs/configuration.md)
-- debugging guide: [docs/debugging.md](docs/debugging.md)
+Requires Python 3.11+, Terraform, and Checkov installed separately (`pip install checkov==3.2.504`). For full setup instructions, environment variables, and the simulation harness, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Documentation
 
@@ -214,6 +195,7 @@ Useful local references:
 - Security model: [docs/security/safety-rails.md](docs/security/safety-rails.md)
 - LLM data handling: [docs/security/llm-data-handling.md](docs/security/llm-data-handling.md)
 - Upgrading Sanara in an existing repo: [docs/upgrading.md](docs/upgrading.md)
+- simulation workspace: [simulations/sanara-sim3/README.md](simulations/sanara-sim3/README.md)
 
 ## Project docs
 

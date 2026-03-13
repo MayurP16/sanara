@@ -27,27 +27,27 @@ That setup is what this document used to call the "harness".
 
 ## How Sanara finds a runnable Terraform setup
 
-Sanara looks for Terraform validation in this order:
+Sanara looks for a runnable Terraform setup in this order:
 
-1. If `examples/**` exists, each example directory is treated as a runnable Terraform root.
-2. Otherwise, if `.sanara/harness.yml` exists, Sanara uses the runs defined there.
-3. Otherwise, Sanara cannot run Terraform validation.
+1. **`examples/`** — if this directory exists, each subdirectory is treated as a runnable Terraform root.
+2. **`.sanara/harness.yml`** — if present, Sanara uses the runs defined there.
+3. **Workspace root (`inferred_root`)** — if neither of the above exists, Sanara falls back to running Terraform from the repository root.
 
-If Terraform validation is required and no runnable setup exists, Sanara will not create a remediation PR.
+If `plan_required: true` and none of the above produce a successful run, Sanara will not create a remediation PR.
 
 ## The simple rule for users
 
-If you want Sanara to open remediation PRs safely, give it one of these:
+For most repositories Sanara will automatically fall back to the workspace root, so you may not need any extra configuration.
+
+If your Terraform setup is more complex — multiple modules, non-root working directories, specific var files — give it one of these:
 
 - runnable Terraform under `examples/**`, or
 - a `.sanara/harness.yml` file that tells it how to run Terraform
 
-If you do not have that yet, you can still start with:
+If you want to start without any validation gates:
 
-- `publish_dry_run: true` during rollout, or
-- `plan_required: false` if you intentionally want weaker validation
-
-`plan_required: false` is useful for early adoption, but it removes an important safety check.
+- `publish_dry_run: true` during rollout — validates locally but does not open PRs
+- `plan_required: false` — skips the plan gate entirely; useful for early adoption but removes an important safety check
 
 ## Example `.sanara/harness.yml`
 

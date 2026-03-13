@@ -5,44 +5,50 @@ Sanara is a PR-native Terraform remediation engine delivered as a GitHub Action.
 At a high level, Sanara:
 
 1. discovers relevant Terraform targets
-2. scans them with supported scanners
-3. normalizes findings into a stable internal format
-4. applies deterministic fixes first
-5. validates those fixes with safety rails and Terraform checks
-6. optionally uses an LLM fallback for uncovered findings
-7. rescans and decides whether to create a remediation PR or fall back to comment-only output
+2. scans them with Checkov and normalizes findings into a stable internal format
+3. applies deterministic fixes first
+4. validates those fixes with safety rails and Terraform checks
+5. optionally uses an LLM fallback for uncovered findings
+6. optionally runs the LLM Advisor to surface additional findings beyond the deterministic ruleset
+7. decides whether to create a remediation PR or fall back to comment-only output
 
 The system is designed to be deterministic-first. LLM behavior is optional and only used after deterministic transforms have had a chance to resolve the finding set.
 
 ## End-to-end flow
 
-The current run flow is:
-
 ```text
-[Init]
-  INIT -> LOAD_POLICY -> DETECT_CONTEXT -> DISCOVER_TARGET_DIRS
-
-[Scan]
-  SCAN_BASELINE -> NORMALIZE_FINDINGS -> SELECT_ATTEMPTS
-
-[Deterministic remediation]
-  DRC_APPLY -> RAILS_VALIDATE_PATCH -> TF_CHECKS -> RESCAN_TARGETED (post_drc)
-
-[Optional follow-up]
-  AGENTIC_APPLY
-  final-stage deterministic cleanup
-
-[Final outcome]
-  RESCAN_TARGETED (final) -> DECIDE -> DEDUP_CHECK -> PR_CREATE | COMMENT_ONLY -> FINALIZE
+┌─ Init ──────────────────────────────────────────────────────────┐
+│  start → load policy → detect repo context → find tf targets    │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─ Scan ──────────────────────────────────────────────────────────┐
+│  run Checkov → normalize findings → select findings to fix      │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─ Deterministic remediation ─────────────────────────────────────┐
+│  apply fix → validate patch → rescan                            │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─ Agentic fallback (optional) ───────────────────────────────────┐
+│  LLM generates fix → deterministic cleanup pass → final rescan  │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─ Terraform checks ──────────────────────────────────────────────┐
+│  fmt → init → validate → plan                                   │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─ LLM Advisor (optional) ────────────────────────────────────────┐
+│  review changed tf files → surface additional findings          │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─ Outcome ───────────────────────────────────────────────────────┐
+│  decide → check for duplicate PRs                               │
+│               ↓                        ↓                        │
+│          open PR                  comment only                  │
+│               └──────────┬──────────┘                          │
+│                         done                                    │
+└─────────────────────────────────────────────────────────────────┘
 ```
-
-Simple reading:
-
-1. discover targets and scan them
-2. try deterministic remediation first
-3. validate the patch with rails and Terraform checks
-4. optionally use agentic fallback for remaining uncovered findings
-5. rescan, decide, and either create a PR or fall back to comment-only output
 
 Each transition is appended to `artifacts/runlog.jsonl` with timestamps and durations for auditability.
 
@@ -121,9 +127,10 @@ Important policy areas include:
 
 Terraform validation runs in this order:
 
-1. `examples/**`
-2. `.sanara/harness.yml`
-3. comment-only mode if no runnable Terraform setup exists
+1. `examples/**` — subdirectories of the `examples/` directory, if it exists
+2. `.sanara/harness.yml` — explicit harness configuration
+3. workspace root (`inferred_root`) — fallback if neither of the above is present
+4. comment-only mode if `plan_required: true` and no runs succeeded
 
 If `plan_required: true` and no runnable Terraform setup exists, Sanara does not create a remediation PR.
 

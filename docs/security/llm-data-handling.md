@@ -19,8 +19,8 @@ Modes:
 - `module` / `repo`: broader context collection when explicitly enabled.
 
 Controls:
-- Allow/deny globs from policy.
-- Secret-pattern redaction is applied to LLM-bound Terraform content before it is sent.
-- Artifact text writers also redact configured secret values from selected text outputs.
+- Allow/deny globs from policy scope what files are included in LLM context.
+- Known secret patterns (AWS keys, PEM headers, GitHub and Slack tokens) are scrubbed from Terraform content before it is sent to the LLM. This is best-effort pattern matching, not comprehensive secret scanning.
+- Artifact writers redact known runtime secrets (`GITHUB_TOKEN`, `ANTHROPIC_API_KEY`) from selected text outputs.
 - Emit `agentic/llm_ledger.json` with file hashes and byte counts.
 - Emit `agentic/trace.jsonl` for tool/decision traceability.

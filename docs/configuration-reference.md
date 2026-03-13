@@ -196,7 +196,10 @@ Resolution order for environment name:
 1. `INPUT_ENVIRONMENT`
 2. top-level `environment` in `.sanara/policy.yml`
 3. `SANARA_ENVIRONMENT`
-4. branch name inference (`main` -> `prod`, `qa` -> `staging`, `dev` -> `dev`)
+4. branch name inference:
+   - `main`, `master`, `prod`, `production` → `prod`
+   - `staging`, `stage`, `qa` → `staging`
+   - `dev`, `develop` → `dev`
 
 ## Environment Variables
 
