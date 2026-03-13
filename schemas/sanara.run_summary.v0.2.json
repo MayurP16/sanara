@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.run_summary.v0.2",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "sanara_version",
+    "rule_pack_version",
+    "run_metadata",
+    "decision",
+    "decision_detail",
+    "phase_timings_ms",
+    "runtime_budget"
+  ],
+  "properties": {
+    "schema_id": {"const": "sanara.run_summary"},
+    "schema_version": {"const": "0.2"},
+    "sanara_version": {"type": "string"},
+    "rule_pack_version": {"type": "string"},
+    "run_metadata": {"type": "object"},
+    "targets": {"type": "array", "items": {"type": "string"}},
+    "findings_count": {"type": "integer"},
+    "attempts": {"type": "array", "items": {"type": "object"}},
+    "decision": {"type": "string"},
+    "decision_detail": {
+      "type": "object",
+      "required": ["reason_code", "message"],
+      "properties": {
+        "reason_code": {"type": "string"},
+        "message": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "agentic": {
+      "type": "object",
+      "required": ["used", "attempts", "accepted_attempts", "rejection_counts"],
+      "properties": {
+        "used": {"type": "boolean"},
+        "attempts": {"type": "integer"},
+        "accepted_attempts": {"type": "integer"},
+        "rejection_counts": {
+          "type": "object",
+          "additionalProperties": {"type": "integer"}
+        },
+        "final_feedback": {"type": "string"},
+        "top_rejections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["attempt", "stage", "reason", "target_file", "target_file_exists_before", "changed_files"],
+            "properties": {
+              "attempt": {"type": "integer"},
+              "stage": {"type": "string"},
+              "reason": {"type": "string"},
+              "target_file": {"type": "string"},
+              "target_file_exists_before": {"type": "boolean"},
+              "changed_files": {"type": "array", "items": {"type": "string"}}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "terraform": {
+      "type": "object",
+      "required": ["ok", "runs"],
+      "properties": {
+        "ok": {"type": "boolean"},
+        "runs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "working_dir", "source", "ok", "init", "validate", "plan"],
+            "properties": {
+              "name": {"type": "string"},
+              "working_dir": {"type": "string"},
+              "source": {"type": "string"},
+              "ok": {"type": "boolean"},
+              "init": {
+                "type": "object",
+                "required": ["cmd", "code", "stdout", "stderr"],
+                "properties": {
+                  "cmd": {"type": "array", "items": {"type": "string"}},
+                  "code": {"type": "integer"},
+                  "stdout": {"type": "string"},
+                  "stderr": {"type": "string"}
+                },
+                "additionalProperties": false
+              },
+              "validate": {
+                "type": "object",
+                "required": ["cmd", "code", "stdout", "stderr"],
+                "properties": {
+                  "cmd": {"type": "array", "items": {"type": "string"}},
+                  "code": {"type": "integer"},
+                  "stdout": {"type": "string"},
+                  "stderr": {"type": "string"}
+                },
+                "additionalProperties": false
+              },
+              "plan": {
+                "type": "object",
+                "required": ["cmd", "code", "stdout", "stderr"],
+                "properties": {
+                  "cmd": {"type": "array", "items": {"type": "string"}},
+                  "code": {"type": "integer"},
+                  "stdout": {"type": "string"},
+                  "stderr": {"type": "string"}
+                },
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "phase_timings_ms": {
+      "type": "object",
+      "additionalProperties": {"type": "integer"}
+    },
+    "runtime_budget": {
+      "type": "object",
+      "required": ["elapsed_seconds", "remaining_seconds", "max_runtime_seconds"],
+      "properties": {
+        "elapsed_seconds": {"type": "integer"},
+        "remaining_seconds": {"type": "integer"},
+        "max_runtime_seconds": {"type": "integer"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

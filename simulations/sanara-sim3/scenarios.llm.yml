@@ -1,0 +1,8 @@
+scenarios:
+  - name: fallback-mixed
+    mode: fallback
+    profile: mixed
+    expected_clean: false
+  - name: real-fallback-mixed
+    mode: real-fallback
+    profile: mixed

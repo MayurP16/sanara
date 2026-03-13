@@ -1,0 +1,68 @@
+name: "Sanara v0.1"
+description: "PR-native Terraform remediation with deterministic transforms and strict gates"
+author: "Sanara"
+
+# These are the public inputs exposed to consuming repositories via:
+# uses: <org>/<repo>@<tag>
+inputs:
+  allow_agentic:
+    description: "Enable optional agentic fallback"
+    required: false
+    default: "false"
+  llm_context_mode:
+    description: "minimal|module|repo"
+    required: false
+    default: "minimal"
+  llm_provider:
+    description: "anthropic|openai for agentic fallback"
+    required: false
+    default: "anthropic"
+  anthropic_model:
+    description: "Anthropic model id for agentic fallback"
+    required: false
+    default: "claude-sonnet-4-6"
+  openai_model:
+    description: "OpenAI model id for agentic fallback"
+    required: false
+    default: "gpt-4o-mini"
+  agentic_max_attempts:
+    description: "Maximum number of LLM remediation attempts per run"
+    required: false
+    default: "16"
+  plan_required:
+    description: "Require terraform plan-capable harness before PR creation"
+    required: false
+    default: "true"
+  publish_dry_run:
+    description: "Generate remediation artifacts but do not push branch or create PR"
+    required: false
+    default: "false"
+  environment:
+    description: "Policy environment override (for example: dev|staging|prod)"
+    required: false
+    default: ""
+  log_level:
+    description: "Runtime log level for workflow console output (DEBUG|INFO|WARNING|ERROR)"
+    required: false
+    default: "INFO"
+  artifacts_dir:
+    description: "Artifacts output directory"
+    required: false
+    default: "artifacts"
+runs:
+  # Sanara is packaged as a Docker action so the runtime is self-contained.
+  using: docker
+  image: Dockerfile
+  # The container entrypoint receives the fixed workspace/event locations that
+  # GitHub Actions mounts for Docker-based actions.
+  args:
+    - run
+    - --event
+    - /github/workflow/event.json
+    - --workspace
+    - /github/workspace
+    - --artifacts
+    - /github/workspace/${{ inputs.artifacts_dir }}
+branding:
+  icon: shield
+  color: blue

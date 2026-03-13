@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sanara.run_summary.v0.1",
+  "type": "object",
+  "required": [
+    "schema_id",
+    "schema_version",
+    "sanara_version",
+    "rule_pack_version",
+    "run_metadata",
+    "decision"
+  ],
+  "properties": {
+    "schema_id": {"const": "sanara.run_summary"},
+    "schema_version": {"const": "0.1"},
+    "sanara_version": {"type": "string"},
+    "rule_pack_version": {"type": "string"},
+    "run_metadata": {"type": "object"},
+    "targets": {"type": "array", "items": {"type": "string"}},
+    "findings_count": {"type": "integer"},
+    "attempts": {"type": "array", "items": {"type": "object"}},
+    "decision": {"type": "string"}
+  }
+}
