@@ -114,7 +114,10 @@ def _unstage_generated_plan_files(workspace: Path) -> None:
     ]
     if not plan_files:
         return
-    run_cmd(["git", "reset", "HEAD", "--", *sorted(plan_files)], cwd=workspace)
+    run_cmd(
+        ["git", "reset", "HEAD", "--", *sorted(plan_files)],
+        cwd=workspace,
+    )
 
 
 def _transition(
