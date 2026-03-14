@@ -58,6 +58,8 @@ Example workflow inputs (`sanara.yml`):
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+For PR creation, also enable the repository Actions setting that allows GitHub Actions to create pull requests. The built-in `secrets.GITHUB_TOKEN` is the recommended default; a PAT is only needed when repo or org policy blocks that token.
+
 Example repository policy (`.sanara/policy.yml`):
 
 ```yaml
@@ -88,7 +90,8 @@ Then:
 ### `plan_required`
 
 - Default: `true`
-- Requires a runnable Terraform harness before Sanara will create a remediation PR.
+- Requires a runnable Terraform harness and runs `terraform plan` before Sanara will create a remediation PR.
+- When set to `false`, Sanara still runs `terraform init` and `terraform validate`, but skips `terraform plan`.
 - Recommended default: keep this `true`
 
 ### `publish_dry_run`

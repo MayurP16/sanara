@@ -205,6 +205,9 @@ Resolution order for environment name:
 
 - `GITHUB_TOKEN`
   - Required for PR comments and PR creation.
+  - In GitHub Actions, pass the built-in `${{ secrets.GITHUB_TOKEN }}` by default.
+  - For PR creation, repository or organization Actions settings must allow GitHub Actions to create pull requests.
+  - Use a PAT only if those settings cannot be enabled.
 - `ANTHROPIC_API_KEY`
   - Required when using Anthropic-backed LLM behavior.
 - `OPENAI_API_KEY`

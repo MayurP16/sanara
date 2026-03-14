@@ -41,9 +41,14 @@ Before adding Sanara to a repository, confirm you have:
 
 - A GitHub repository with Terraform (`.tf`) files
 - GitHub Actions enabled
+- GitHub Actions repository settings configured to allow PR creation:
+  - `Settings` -> `Actions` -> `General` -> `Workflow permissions` -> `Read and write permissions`
+  - enable `Allow GitHub Actions to create and approve pull requests`
 - Familiarity with [Checkov](https://www.checkov.io/) findings is helpful but not required — Sanara normalizes findings internally
 - AWS credentials available as repository secrets (only required if `plan_required: true`)
-- A `GITHUB_TOKEN` with write permissions — [create a fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) and add it as a repository secret
+- The built-in `secrets.GITHUB_TOKEN` available to GitHub Actions workflows
+  - add workflow permissions for `contents: write` and `pull-requests: write`
+  - use a fine-grained PAT only if your repo/org policy blocks the built-in token
 - An `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` — create a key from your [Anthropic Console](https://console.anthropic.com/) or [OpenAI dashboard](https://platform.openai.com/api-keys) and add it as a repository secret (only required if LLM fallback or the LLM Advisor is enabled)
 
 ## Quick start
@@ -100,7 +105,7 @@ jobs:
         with:
           publish_dry_run: "true"  # preview mode — switch to "false" once validated
           allow_agentic: "false"   # set to "true" to enable LLM fallback
-          plan_required: "true"    # set to "fasle" to disable terraform plan
+          plan_required: "true"    # set to "false" to skip terraform plan
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

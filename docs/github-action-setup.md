@@ -36,10 +36,15 @@ Each consumer repository needs:
 - Permissions:
   - `contents: write`
   - `pull-requests: write`
+- Repository Actions settings:
+  - `Workflow permissions` set to `Read and write permissions`
+  - `Allow GitHub Actions to create and approve pull requests` enabled
 - `actions/checkout@v4` with `fetch-depth: 0`
 - Environment secrets:
-  - `GITHUB_TOKEN` (required for comments/PRs)
+  - `GITHUB_TOKEN` (pass the built-in `${{ secrets.GITHUB_TOKEN }}` for comments/PRs)
   - `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` (required only if `allow_agentic: true`)
+
+Use a fine-grained PAT only if repository or organization policy prevents the built-in `secrets.GITHUB_TOKEN` from creating PRs.
 
 ## Recommended workflow snippet
 
@@ -67,6 +72,8 @@ jobs:
 ```
 
 If your repository needs Terraform validation before Sanara can open remediation PRs, also make sure it has a runnable Terraform setup. See `docs/terraform-validation.md`.
+
+If Sanara reaches `PR_CREATE` and GitHub returns `403 Forbidden`, the usual cause is repository or organization Actions settings, not a missing PAT.
 
 ## Variations
 
@@ -118,6 +125,7 @@ jobs:
 - no findings produced a valid patch
 - blocking findings still remained after rescan
 - fork or token restrictions prevented publish actions
+- GitHub Actions was not allowed to create pull requests in repository or organization settings
 
 When this happens, inspect `artifacts/run_summary.json` and the uploaded artifacts before changing the workflow.
 
