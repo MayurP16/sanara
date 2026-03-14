@@ -19,7 +19,7 @@ For a first rollout, keep the setup conservative:
 ### Public action repository
 - Keep this repository public.
 - Consumers reference a tagged release:
-  - `uses: MayurP16/sanara@v0.1.0a1`
+  - `uses: MayurP16/sanara@v0.1.0a3`
 - This is the simplest onboarding path and supports broad community adoption.
 
 ### Private action repository
@@ -32,14 +32,19 @@ For a first rollout, keep the setup conservative:
 
 Each consumer repository needs:
 - Action invocation pinned to a tag:
-  - `uses: MayurP16/sanara@v0.1.0a1`
+  - `uses: MayurP16/sanara@v0.1.0a3`
 - Permissions:
   - `contents: write`
   - `pull-requests: write`
+- Repository Actions settings:
+  - `Workflow permissions` set to `Read and write permissions`
+  - `Allow GitHub Actions to create and approve pull requests` enabled
 - `actions/checkout@v4` with `fetch-depth: 0`
 - Environment secrets:
-  - `GITHUB_TOKEN` (required for comments/PRs)
+  - `GITHUB_TOKEN` (pass the built-in `${{ secrets.GITHUB_TOKEN }}` for comments/PRs)
   - `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` (required only if `allow_agentic: true`)
+
+Use a fine-grained PAT only if repository or organization policy prevents the built-in `secrets.GITHUB_TOKEN` from creating PRs.
 
 ## Recommended workflow snippet
 
@@ -58,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: MayurP16/sanara@v0.1.0a1
+      - uses: MayurP16/sanara@v0.1.0a3
         with:
           publish_dry_run: "true"
           allow_agentic: "false"
@@ -68,6 +73,8 @@ jobs:
 
 If your repository needs Terraform validation before Sanara can open remediation PRs, also make sure it has a runnable Terraform setup. See `docs/terraform-validation.md`.
 
+If Sanara reaches `PR_CREATE` and GitHub returns `403 Forbidden`, the usual cause is repository or organization Actions settings, not a missing PAT.
+
 ## Variations
 
 ### Agentic-enabled rollout
@@ -75,7 +82,7 @@ If your repository needs Terraform validation before Sanara can open remediation
 If you want to enable the optional agentic fallback, add the provider choice and corresponding API key:
 
 ```yaml
-- uses: MayurP16/sanara@v0.1.0a1
+- uses: MayurP16/sanara@v0.1.0a3
   with:
     allow_agentic: "true"
     llm_provider: "anthropic"
@@ -96,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: MayurP16/sanara@v0.1.0a1
+      - uses: MayurP16/sanara@v0.1.0a3
         with:
           publish_dry_run: "true"
           allow_agentic: "false"
@@ -118,6 +125,7 @@ jobs:
 - no findings produced a valid patch
 - blocking findings still remained after rescan
 - fork or token restrictions prevented publish actions
+- GitHub Actions was not allowed to create pull requests in repository or organization settings
 
 When this happens, inspect `artifacts/run_summary.json` and the uploaded artifacts before changing the workflow.
 
@@ -136,6 +144,6 @@ When this happens, inspect `artifacts/run_summary.json` and the uploaded artifac
 
 ## Release hygiene for consumers
 
-- Use immutable tags for production rollout (for example `v0.1.0-alpha.1`).
+- Use immutable tags for production rollout (for example `v0.1.0-alpha.3`).
 - Keep a moving major tag for easier upgrades (`v0` -> latest `v0.x.y`).
 - Publish release notes with behavior and policy changes.

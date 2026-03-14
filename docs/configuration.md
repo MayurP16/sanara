@@ -49,7 +49,7 @@ For most teams, a safe first rollout looks like this:
 Example workflow inputs (`sanara.yml`):
 
 ```yaml
-- uses: MayurP16/sanara@v0.1.0a1
+- uses: MayurP16/sanara@v0.1.0a3
   with:
     allow_agentic: "false"
     plan_required: "true"
@@ -57,6 +57,8 @@ Example workflow inputs (`sanara.yml`):
   env:
     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+For PR creation, also enable the repository Actions setting that allows GitHub Actions to create pull requests. The built-in `secrets.GITHUB_TOKEN` is the recommended default; a PAT is only needed when repo or org policy blocks that token.
 
 Example repository policy (`.sanara/policy.yml`):
 
@@ -88,7 +90,8 @@ Then:
 ### `plan_required`
 
 - Default: `true`
-- Requires a runnable Terraform harness before Sanara will create a remediation PR.
+- Requires a runnable Terraform harness and runs `terraform plan` before Sanara will create a remediation PR.
+- When set to `false`, Sanara still runs `terraform init` and `terraform validate`, but skips `terraform plan`.
 - Recommended default: keep this `true`
 
 ### `publish_dry_run`

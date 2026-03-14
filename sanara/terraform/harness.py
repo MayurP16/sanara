@@ -115,7 +115,7 @@ def discover_harness_runs(workspace: Path, harness_file: Path) -> list[HarnessRu
     return []
 
 
-def _run_one(run: HarnessRun, workspace: Path) -> dict[str, object]:
+def _run_one(run: HarnessRun, workspace: Path, run_plan: bool = True) -> dict[str, object]:
     wd = run.working_dir if run.working_dir.is_absolute() else workspace / run.working_dir
     if not wd.exists():
         return {
@@ -129,11 +129,15 @@ def _run_one(run: HarnessRun, workspace: Path) -> dict[str, object]:
     init = run_cmd(init_cmd, cwd=wd, timeout_seconds=run.timeout_seconds, env=run.env)
     validate_cmd = ["terraform", "validate", *run.validate_args]
     validate = run_cmd(validate_cmd, cwd=wd, timeout_seconds=run.timeout_seconds, env=run.env)
-    plan_cmd = ["terraform", "plan", f"-refresh={'true' if run.refresh else 'false'}"]
-    for vf in run.var_files or []:
-        plan_cmd.extend(["-var-file", vf])
-    plan_cmd.extend(run.plan_args)
-    plan = run_cmd(plan_cmd, cwd=wd, timeout_seconds=run.timeout_seconds, env=run.env)
+    plan_cmd: list[str] = []
+    if run_plan:
+        plan_cmd = ["terraform", "plan", f"-refresh={'true' if run.refresh else 'false'}"]
+        for vf in run.var_files or []:
+            plan_cmd.extend(["-var-file", vf])
+        plan_cmd.extend(run.plan_args)
+        plan = run_cmd(plan_cmd, cwd=wd, timeout_seconds=run.timeout_seconds, env=run.env)
+    else:
+        plan = None
     return {
         "name": run.name,
         "working_dir": str(wd),
@@ -152,20 +156,20 @@ def _run_one(run: HarnessRun, workspace: Path) -> dict[str, object]:
         },
         "plan": {
             "cmd": plan_cmd,
-            "code": plan.code,
-            "stdout": plan.stdout,
-            "stderr": plan.stderr,
+            "code": plan.code if plan else 0,
+            "stdout": plan.stdout if plan else "terraform plan skipped (plan_required=false)",
+            "stderr": plan.stderr if plan else "",
         },
-        "ok": init.code == 0 and validate.code == 0 and plan.code == 0,
+        "ok": init.code == 0 and validate.code == 0 and (not run_plan or plan.code == 0),
     }
 
 
 def run_harness_checks(
-    workspace: Path, harness_file: Path = Path(".sanara/harness.yml")
+    workspace: Path, harness_file: Path = Path(".sanara/harness.yml"), run_plan: bool = True
 ) -> HarnessResult:
     runs = discover_harness_runs(workspace, harness_file)
     if not runs:
         return HarnessResult(ok=False, runs=[])
 
-    out = [_run_one(r, workspace) for r in runs]
+    out = [_run_one(r, workspace, run_plan=run_plan) for r in runs]
     return HarnessResult(ok=all(bool(x["ok"]) for x in out), runs=out)

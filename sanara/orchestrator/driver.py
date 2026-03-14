@@ -936,7 +936,12 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
         nonlocal tf_checks, tf_dict
         fmt = run_cmd(["terraform", "fmt", "-recursive"], cwd=workspace)
         tf_checks = _t(
-            "TF_CHECKS", lambda: run_harness_checks(workspace, workspace / ".sanara/harness.yml")
+            "TF_CHECKS",
+            lambda: run_harness_checks(
+                workspace,
+                workspace / ".sanara/harness.yml",
+                run_plan=policy.plan_required,
+            ),
         )
         tf_dict = tf_checks.to_dict()
         inferred_root_runs = sum(

@@ -12,8 +12,9 @@ rule_pack_version: v0.1.0-alpha.1
 # deterministic ruleset. Requires ANTHROPIC_API_KEY or OPENAI_API_KEY.
 allow_agentic: false
 
-# plan_required: run terraform plan as part of patch validation.
-# Requires valid cloud credentials in the workflow environment.
+# plan_required: require terraform plan as part of patch validation.
+# When false, Sanara still runs terraform init and terraform validate, but skips plan.
+# plan_required=true may require valid cloud credentials in the workflow environment.
 plan_required: true
 
 # publish_dry_run: validate and log what would be remediated, but do not

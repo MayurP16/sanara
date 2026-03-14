@@ -113,3 +113,38 @@ def test_harness_supports_explicit_init_and_plan_args(monkeypatch, tmp_path: Pat
         "-out=tfplan",
     ]
     assert seen == [run["init"]["cmd"], run["validate"]["cmd"], run["plan"]["cmd"]]
+
+
+def test_harness_skips_plan_when_disabled(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / ".sanara").mkdir()
+    (tmp_path / "main.tf").write_text("terraform {}\n", encoding="utf-8")
+    (tmp_path / ".sanara/harness.yml").write_text(
+        "\n".join(
+            [
+                "version: 1",
+                "runs:",
+                "  - name: root",
+                "    working_dir: .",
+                "    init:",
+                "      backend: false",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    seen: list[list[str]] = []
+
+    def _run(cmd, cwd, **kwargs):
+        seen.append(cmd)
+        return _Result(0)
+
+    monkeypatch.setattr(harness, "run_cmd", _run)
+
+    result = harness.run_harness_checks(tmp_path, run_plan=False)
+    assert result.ok
+    run = result.runs[0]
+    assert run["plan"]["cmd"] == []
+    assert run["plan"]["code"] == 0
+    assert "skipped" in run["plan"]["stdout"]
+    assert seen == [run["init"]["cmd"], run["validate"]["cmd"]]
