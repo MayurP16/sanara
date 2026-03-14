@@ -19,7 +19,7 @@ For a first rollout, keep the setup conservative:
 ### Public action repository
 - Keep this repository public.
 - Consumers reference a tagged release:
-  - `uses: your-org/sanara@<release-tag>`
+  - `uses: MayurP16/sanara@v0.1.0a1`
 - This is the simplest onboarding path and supports broad community adoption.
 
 ### Private action repository
@@ -32,7 +32,7 @@ For a first rollout, keep the setup conservative:
 
 Each consumer repository needs:
 - Action invocation pinned to a tag:
-  - `uses: your-org/sanara@<release-tag>`
+  - `uses: MayurP16/sanara@v0.1.0a1`
 - Permissions:
   - `contents: write`
   - `pull-requests: write`
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: your-org/sanara@<release-tag>
+      - uses: MayurP16/sanara@v0.1.0a1
         with:
           publish_dry_run: "true"
           allow_agentic: "false"
@@ -75,7 +75,7 @@ If your repository needs Terraform validation before Sanara can open remediation
 If you want to enable the optional agentic fallback, add the provider choice and corresponding API key:
 
 ```yaml
-- uses: your-org/sanara@<release-tag>
+- uses: MayurP16/sanara@v0.1.0a1
   with:
     allow_agentic: "true"
     llm_provider: "anthropic"
@@ -96,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: your-org/sanara@<release-tag>
+      - uses: MayurP16/sanara@v0.1.0a1
         with:
           publish_dry_run: "true"
           allow_agentic: "false"

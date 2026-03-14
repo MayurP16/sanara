@@ -49,7 +49,7 @@ For most teams, a safe first rollout looks like this:
 Example workflow inputs (`sanara.yml`):
 
 ```yaml
-- uses: your-org/sanara@<release-tag>
+- uses: MayurP16/sanara@v0.1.0a1
   with:
     allow_agentic: "false"
     plan_required: "true"
