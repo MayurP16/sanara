@@ -165,7 +165,11 @@ def run_agentic_apply(
             feedback = f"rail failed {rails.code}: {rails.message}"
             return False, "rails", rails.message
         fmt = run_cmd(["terraform", "fmt", "-recursive"], cwd=workspace)
-        tf_checks = run_harness_checks(workspace, workspace / ".sanara/harness.yml")
+        tf_checks = run_harness_checks(
+            workspace,
+            workspace / ".sanara/harness.yml",
+            run_plan=policy.plan_required,
+        )
         write_terraform_logs(tf_checks.to_dict(), fmt.stdout, fmt.stderr)
         if (not tf_checks.runs and not policy.plan_required) or tf_checks.ok:
             _rescan_update()
