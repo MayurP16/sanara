@@ -100,6 +100,22 @@ ALLOWED_REASON_CODES = {
 _LOG = logging.getLogger(__name__)
 
 
+def _unstage_generated_plan_files(workspace: Path) -> None:
+    """Keep Terraform plan artifacts out of remediation commits."""
+    plan_files = [
+        str(path.relative_to(workspace))
+        for path in workspace.rglob("*")
+        if path.is_file()
+        and (path.name == "tfplan" or path.name == "terraform.tfplan" or path.suffix == ".tfplan")
+    ]
+    if not plan_files:
+        return
+    run_cmd(
+        ["git", "reset", "HEAD", "--", *sorted(plan_files)],
+        cwd=workspace,
+    )
+
+
 def _transition(
     logger: RunLogger, state: str, fn, phase_timings_ms: dict[str, int] | None = None
 ) -> Any:
@@ -408,6 +424,7 @@ def _ensure_branch_and_push(
                     pass
             # Unstage checkov's github_conf directory if present (created when GitHub env vars are set).
             run_cmd(["git", "reset", "HEAD", "--", "github_conf"], cwd=workspace)
+            _unstage_generated_plan_files(workspace)
             run_cmd_checked(["git", "commit", "-m", "Sanara remediation v0.1"], cwd=workspace)
             run_cmd_checked(["git", "push", "-u", "origin", candidate], cwd=workspace)
             return candidate
