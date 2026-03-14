@@ -106,11 +106,7 @@ def _unstage_generated_plan_files(workspace: Path) -> None:
         str(path.relative_to(workspace))
         for path in workspace.rglob("*")
         if path.is_file()
-        and (
-            path.name == "tfplan"
-            or path.name == "terraform.tfplan"
-            or path.suffix == ".tfplan"
-        )
+        and (path.name == "tfplan" or path.name == "terraform.tfplan" or path.suffix == ".tfplan")
     ]
     if not plan_files:
         return
