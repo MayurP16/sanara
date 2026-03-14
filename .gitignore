@@ -24,6 +24,7 @@ pip-wheel-metadata/
 # Terraform runtime artifacts
 .terraform/
 **/.terraform/
+tfplan
 *.tfplan
 *.tfstate
 *.tfstate.*
