@@ -79,6 +79,19 @@ Then:
 3. Confirm the harness and Terraform gates behave as expected.
 4. Turn off `publish_dry_run` when you are comfortable with the output.
 
+## Trigger Scope
+
+Sanara’s scan scope depends on the workflow trigger:
+
+- `pull_request`
+  - scans only `.tf` files changed in the PR
+- `workflow_dispatch`
+  - scans all `.tf` files in the repository checkout
+- `push`
+  - scans all `.tf` files in the repository checkout
+
+Use `pull_request` when you want remediation tied to code under review. Use `workflow_dispatch`, `schedule`, or `push` on the default branch when you want Sanara to sweep Terraform already present on `main`.
+
 ## What to configure first
 
 ### `allow_agentic`

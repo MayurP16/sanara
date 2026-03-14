@@ -120,6 +120,22 @@ jobs:
 
 Start with `publish_dry_run: "true"` on first rollout. Sanara will validate and log what it would remediate without opening any PRs. Switch to `"false"` once you're comfortable with the output.
 
+### Trigger behavior
+
+Sanara changes scope based on the GitHub event that starts the workflow:
+
+- `pull_request`
+  - scans only `.tf` files changed in the PR
+  - use this for normal PR remediation during review
+- `workflow_dispatch`
+  - manual run from the Actions tab
+  - scans all `.tf` files in the checked-out repository workspace
+- `push`
+  - scans all `.tf` files in the checked-out repository workspace
+  - useful for baseline remediation after a PR is merged into `main`
+
+If you want Sanara to remediate Terraform that already exists on `main`, not just Terraform changed in an open PR, add a `push` trigger for your default branch or run the workflow manually with `workflow_dispatch`.
+
 **What happens when validation fails?** Findings that don't pass validation are skipped and recorded in the artifact bundle with a reason. The workflow step exits successfully — it does not fail CI — so a finding with no safe fix never blocks the PR it came from.
 
 For full rollout guidance, see [docs/github-action-setup.md](docs/github-action-setup.md).
