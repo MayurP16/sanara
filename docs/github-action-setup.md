@@ -71,6 +71,45 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+## How Triggers Affect Scan Scope
+
+Sanara behaves differently depending on which GitHub event starts the workflow:
+
+- `pull_request`
+  - scans only `.tf` files changed in the PR
+  - use this for normal developer-facing remediation during review
+- `workflow_dispatch`
+  - manual run from the Actions tab
+  - scans all `.tf` files in the repository checkout
+- `push`
+  - scans all `.tf` files in the repository checkout
+  - useful after a PR merge, because the merge creates a push event on the default branch
+
+This matters if you want to remediate Terraform that already exists on `main`. A `pull_request` run will not sweep the full repository baseline. For that, use `workflow_dispatch`, `schedule`, or `push` on the default branch.
+
+Example post-merge baseline trigger:
+
+```yaml
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+```
+
+If you only want the post-merge run when Terraform-related files changed, add path filters:
+
+```yaml
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/*.tf"
+      - ".sanara/**"
+```
+
 If your repository needs Terraform validation before Sanara can open remediation PRs, also make sure it has a runnable Terraform setup. See `docs/terraform-validation.md`.
 
 If Sanara reaches `PR_CREATE` and GitHub returns `403 Forbidden`, the usual cause is repository or organization Actions settings, not a missing PAT.
