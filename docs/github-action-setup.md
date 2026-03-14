@@ -19,7 +19,7 @@ For a first rollout, keep the setup conservative:
 ### Public action repository
 - Keep this repository public.
 - Consumers reference a tagged release:
-  - `uses: MayurP16/sanara@v0.1.0a1`
+  - `uses: MayurP16/sanara@v0.1.0a3`
 - This is the simplest onboarding path and supports broad community adoption.
 
 ### Private action repository
@@ -32,7 +32,7 @@ For a first rollout, keep the setup conservative:
 
 Each consumer repository needs:
 - Action invocation pinned to a tag:
-  - `uses: MayurP16/sanara@v0.1.0a1`
+  - `uses: MayurP16/sanara@v0.1.0a3`
 - Permissions:
   - `contents: write`
   - `pull-requests: write`
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: MayurP16/sanara@v0.1.0a1
+      - uses: MayurP16/sanara@v0.1.0a3
         with:
           publish_dry_run: "true"
           allow_agentic: "false"
@@ -82,7 +82,7 @@ If Sanara reaches `PR_CREATE` and GitHub returns `403 Forbidden`, the usual caus
 If you want to enable the optional agentic fallback, add the provider choice and corresponding API key:
 
 ```yaml
-- uses: MayurP16/sanara@v0.1.0a1
+- uses: MayurP16/sanara@v0.1.0a3
   with:
     allow_agentic: "true"
     llm_provider: "anthropic"
@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: MayurP16/sanara@v0.1.0a1
+      - uses: MayurP16/sanara@v0.1.0a3
         with:
           publish_dry_run: "true"
           allow_agentic: "false"
@@ -144,6 +144,6 @@ When this happens, inspect `artifacts/run_summary.json` and the uploaded artifac
 
 ## Release hygiene for consumers
 
-- Use immutable tags for production rollout (for example `v0.1.0-alpha.1`).
+- Use immutable tags for production rollout (for example `v0.1.0-alpha.3`).
 - Keep a moving major tag for easier upgrades (`v0` -> latest `v0.x.y`).
 - Publish release notes with behavior and policy changes.

@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.0a3] - 2026-03-14
+
+### Fixed
+
+- Honored `plan_required: false` by skipping `terraform plan` while still running `terraform init` and `terraform validate` during harness checks.
+
+### Changed
+
+- Clarified GitHub Action setup docs to recommend built-in `secrets.GITHUB_TOKEN` by default and documented the repository Actions settings required for PR creation.
+
 ## [0.1.0a2] - 2026-03-13
 
 ### Fixed

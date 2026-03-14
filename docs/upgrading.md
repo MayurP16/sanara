@@ -12,7 +12,7 @@ This guide is for repositories already using the Sanara GitHub Action.
 
 ## Safer rollout habits
 
-- prefer immutable tags such as `v0.1.0-alpha.1`
+- prefer immutable tags such as `v0.1.0-alpha.3`
 - update one repo or environment first before broader rollout
 - keep `plan_required: "true"` unless you intentionally want weaker validation
 - review release notes for policy, schema, or behavior changes
