@@ -6,6 +6,21 @@ Sanara is a PR-native Terraform remediation engine for GitHub Actions. It scans 
 
 **Status:** alpha. Deterministic remediation is the primary product surface. Agentic fallback is optional and experimental.
 
+## Looking for design partners and early feedback
+
+If you manage Terraform and deal with scanner backlogs, I'd love to hear from you — especially on:
+
+- **Setup friction** — was the workflow and config clear enough to get running?
+- **Remediation quality** — false positives, low-value fixes, or patches you wouldn't merge?
+- **Rule coverage** — findings Sanara doesn't handle that you expected it to
+- **LLM paths** — if you've tried the LLM fallback or LLM Advisor, was the output useful? Too noisy? Would you trust it enough to act on?
+
+Two ways to reach me:
+
+- [Book time with me](https://calendly.com/patelm95/quick-chat) — open to anything: feedback, questions, how it fits your setup, or working through the integration together on your repo
+- [Open an issue](https://github.com/MayurP16/sanara/issues/new) — feedback, bug reports, questions, or feature requests
+- [Email me](mailto:sanara.lab@gmail.com) — sanara.lab@gmail.com
+
 ## Why Sanara
 
 Security scanners find problems. They rarely fix them.
