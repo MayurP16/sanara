@@ -19,6 +19,7 @@ Two ways to reach me:
 
 - [Book time with me](https://calendly.com/patelm95/quick-chat) — open to anything: feedback, questions, how it fits your setup, or working through the integration together on your repo
 - [Open an issue](https://github.com/MayurP16/sanara/issues/new) — feedback, bug reports, questions, or feature requests
+- [Email me](mailto:sanara.lab@gmail.com) — sanara.lab@gmail.com
 
 ## Why Sanara
 
