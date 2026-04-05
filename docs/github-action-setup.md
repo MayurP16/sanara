@@ -19,7 +19,7 @@ For a first rollout, keep the setup conservative:
 ### Public action repository
 - Keep this repository public.
 - Consumers reference a tagged release:
-  - `uses: MayurP16/sanara@v0.1.0a3`
+  - `uses: MayurP16/sanara@v0.1.0a4`
 - This is the simplest onboarding path and supports broad community adoption.
 
 ### Private action repository
@@ -32,7 +32,7 @@ For a first rollout, keep the setup conservative:
 
 Each consumer repository needs:
 - Action invocation pinned to a tag:
-  - `uses: MayurP16/sanara@v0.1.0a3`
+  - `uses: MayurP16/sanara@v0.1.0a4`
 - Permissions:
   - `contents: write`
   - `pull-requests: write`
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: MayurP16/sanara@v0.1.0a3
+      - uses: MayurP16/sanara@v0.1.0a4
         with:
           publish_dry_run: "true"
           allow_agentic: "false"
