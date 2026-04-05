@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sanara"
-version = "0.1.0a3"
+version = "0.1.0a4"
 description = "Sanara v0.1 PR-native Terraform remediation engine"
 readme = "README.md"
 requires-python = ">=3.11"

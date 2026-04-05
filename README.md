@@ -116,7 +116,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - uses: MayurP16/sanara@v0.1.0a3  # replace with the latest tag from the releases page
+      - uses: MayurP16/sanara@v0.1.0a4  # replace with the latest tag from the releases page
         with:
           publish_dry_run: "true"  # preview mode — switch to "false" once validated
           allow_agentic: "false"   # set to "true" to enable LLM fallback
