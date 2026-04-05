@@ -24,6 +24,7 @@ class PolicyValidationError(RuntimeError):
 _TOP_LEVEL_KEYS = {
     "rule_pack_version",
     "environment",
+    "module_repo_defaults",
     "allow_agentic",
     "require_cmk_for",
     "allow_rules",
@@ -58,6 +59,7 @@ _FINDING_POLICY_KEYS = {
     "ignore",
     "hard_fail_on",
     "soft_fail_on",
+    "by_path",
 }
 
 

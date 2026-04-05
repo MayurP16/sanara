@@ -7,6 +7,7 @@
   "properties": {
     "rule_pack_version": { "type": "string" },
     "environment": { "type": "string" },
+    "module_repo_defaults": { "type": "boolean" },
     "allow_agentic": { "type": "boolean" },
     "plan_required": { "type": "boolean" },
     "publish_dry_run": { "type": "boolean" },
@@ -46,7 +47,19 @@
         "suggest_only": { "type": "array", "items": { "type": "string" } },
         "ignore": { "type": "array", "items": { "type": "string" } },
         "hard_fail_on": { "type": "array", "items": { "type": "string" } },
-        "soft_fail_on": { "type": "array", "items": { "type": "string" } }
+        "soft_fail_on": { "type": "array", "items": { "type": "string" } },
+        "by_path": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "path": { "type": "string" },
+              "auto_fix_mode": { "type": "string" },
+              "category": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "environments": {

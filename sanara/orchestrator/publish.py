@@ -55,6 +55,40 @@ def build_fix_pr_title(changed_attempts: int, clean: bool, llm_reduced_count: in
     return f"Sanara: {total_fixes} Terraform {noun} for review"
 
 
+def build_fork_diff_comment(
+    diff: str,
+    findings_count: int,
+    changed_attempts: int,
+    remaining_count: int,
+) -> str:
+    _DIFF_LINE_LIMIT = 200
+    lines = [
+        "## Sanara Security Fix (Fork PR)",
+        "",
+        "Sanara computed a security fix for this PR but cannot push a branch because "
+        "this is a cross-repository fork. Apply the patch below to your branch.",
+        "",
+        f"- Findings detected: {findings_count}",
+        f"- DRC fixes applied: {changed_attempts}",
+    ]
+    if remaining_count:
+        lines.append(f"- Blocking findings remaining after fix: {remaining_count}")
+    else:
+        lines.append("- No blocking findings remain after fix.")
+    diff_lines = diff.splitlines()
+    truncated = len(diff_lines) > _DIFF_LINE_LIMIT
+    shown = diff_lines[:_DIFF_LINE_LIMIT]
+    lines.extend(["", "```diff", *shown])
+    if truncated:
+        lines.append(
+            f"# ... diff truncated ({len(diff_lines) - _DIFF_LINE_LIMIT} more lines). See workflow artifact sanara-artifacts for full diff."
+        )
+    lines.extend(
+        ["```", "", "To apply: save the diff and run `git apply <file>` in your repository root."]
+    )
+    return "\n".join(lines)
+
+
 def build_fix_pr_body(
     client: GitHubClient,
     dedup_payload: dict[str, Any],
@@ -65,6 +99,7 @@ def build_fix_pr_body(
     llm_accepted_attempts: int = 0,
     llm_rejection_counts: dict[str, int] | None = None,
     llm_improved_findings: list[dict[str, str]] | None = None,
+    llm_improved_count: int | None = None,
     findings_count: int,
     attempts_count: int,
     changed_attempts: int,
@@ -79,8 +114,10 @@ def build_fix_pr_body(
     environment: str | None = None,
     policy_overrides_loaded: bool | None = None,
     advisory_remaining_findings: list[dict[str, Any]] | None = None,
+    changed_findings: list[dict[str, Any]] | None = None,
     advisor_findings: list[dict[str, Any]] | None = None,
     checkov_to_sanara: dict[str, str] | None = None,
+    pre_existing_tf_failure: bool = False,
     terraform_init_ok: bool | None = None,
     terraform_validate_ok: bool | None = None,
     terraform_plan_ok: bool | None = None,
@@ -125,6 +162,24 @@ def build_fix_pr_body(
             return f"`{source_rule_id}`"
         return f"{label} (`{source_rule_id}`)"
 
+    def _format_llm_finding(item: dict[str, Any]) -> str:
+        base = _format_source_rule(
+            str(item.get("source_rule_id", "")),
+            str(item.get("sanara_rule_id", "")).strip() or None,
+        )
+        resource_type = str(item.get("resource_type", "")).strip()
+        resource_name = str(item.get("resource_name", "")).strip()
+        file_path = str(item.get("file_path", "")).strip()
+        resource = ".".join(x for x in [resource_type, resource_name] if x)
+        extras: list[str] = []
+        if resource:
+            extras.append(resource)
+        if file_path:
+            extras.append(file_path)
+        if not extras:
+            return base
+        return f"{base} on {' in '.join(extras[:2])}"
+
     def _llm_outcome_label(stage: str) -> str:
         labels = {
             "accepted": "accepted",
@@ -143,7 +198,11 @@ def build_fix_pr_body(
         sanara_to_checkov.setdefault(sid, []).append(ckv_id)
 
     marker = client.dedup_marker(dedup_payload)
-    llm_reduced_count = len(llm_improved_findings or [])
+    llm_reduced_count = (
+        int(llm_improved_count)
+        if llm_improved_count is not None
+        else len(llm_improved_findings or [])
+    )
     fix_noun = "fix" if changed_attempts == 1 else "fixes"
     status_line = (
         f"Sanara applied {changed_attempts} Deterministic Remediation Compiler (DRC) {fix_noun}."
@@ -159,6 +218,7 @@ def build_fix_pr_body(
     advisory_rule_counts: dict[str, int] = {}
     advisory_rule_transform_available: dict[str, bool] = {}
     advisory_rule_sanara_ids: dict[str, str] = {}
+    advisory_rule_blocked_by_policy: dict[str, bool] = {}
     for finding in advisory_remaining_findings or []:
         rid = str(finding.get("source_rule_id", "")).strip().upper()
         if not rid:
@@ -170,6 +230,17 @@ def build_fix_pr_body(
         has_transform = bool(sanara_rule_id and sanara_rule_id in REGISTRY)
         advisory_rule_transform_available[rid] = (
             advisory_rule_transform_available.get(rid, False) or has_transform
+        )
+        policy = finding.get("policy", {}) if isinstance(finding.get("policy"), dict) else {}
+        auto_fix_mode = str(policy.get("auto_fix_mode", "")).strip()
+        matched_source = str(policy.get("matched_policy_source", "")).strip()
+        blocked_by_policy = (
+            has_transform
+            and auto_fix_mode == "suggest_only"
+            and matched_source.startswith("by_path[")
+        )
+        advisory_rule_blocked_by_policy[rid] = (
+            advisory_rule_blocked_by_policy.get(rid, False) or blocked_by_policy
         )
 
     def _check(ok: bool | None) -> str:
@@ -203,7 +274,12 @@ def build_fix_pr_body(
         ]
     )
 
-    grouped_rules = _group_rules(attempted_rules)
+    changed_rule_ids = {
+        str(f.get("sanara_rule_id", "")).strip()
+        for f in (changed_findings or [])
+        if str(f.get("sanara_rule_id", "")).strip()
+    }
+    grouped_rules = _group_rules(changed_rule_ids)
 
     if not grouped_rules:
         lines.append("- none")
@@ -223,6 +299,7 @@ def build_fix_pr_body(
             rid
             for rid in sorted(advisory_rule_counts)
             if advisory_rule_transform_available.get(rid, False)
+            and not advisory_rule_blocked_by_policy.get(rid, False)
             and _SUPERSEDED_BY.get(rid) not in attempted_rules
         ]
     advisor = list(advisor_findings or [])
@@ -235,19 +312,80 @@ def build_fix_pr_body(
             ]
         )
         for item in llm_improved_findings:
-            lines.append(
-                "  - "
-                + _format_source_rule(
-                    str(item.get("source_rule_id", "")),
-                    str(item.get("sanara_rule_id", "")).strip() or None,
-                )
-            )
+            lines.append("  - " + _format_llm_finding(item))
 
     if advisory_rule_counts:
+        transform_eligible_count = sum(
+            1
+            for rid in advisory_rule_counts
+            if advisory_rule_transform_available.get(rid, False)
+            and not advisory_rule_blocked_by_policy.get(rid, False)
+            and _SUPERSEDED_BY.get(rid) not in attempted_rules
+        )
+        policy_excluded_count = sum(
+            1 for rid in advisory_rule_counts if advisory_rule_blocked_by_policy.get(rid, False)
+        )
+        manual_only_count = (
+            len(advisory_rule_counts) - transform_eligible_count - policy_excluded_count
+        )
+
+        def _provider_prefix(rid: str) -> str:
+            r = rid.upper()
+            if r.startswith(("CKV_AWS_", "CKV2_AWS_")):
+                return "AWS"
+            if r.startswith(("CKV_AZURE_", "CKV2_AZURE_")):
+                return "Azure"
+            if r.startswith(("CKV_GCP_", "CKV2_GCP_")):
+                return "GCP"
+            if r.startswith("CKV_ALI_"):
+                return "Alibaba"
+            if r.startswith("CKV_OCI_"):
+                return "Oracle"
+            if r.startswith("CKV_DOCKER_"):
+                return "Docker"
+            if r.startswith("CKV_SECRET_"):
+                return "Secrets"
+            return "Other"
+
+        provider_counts: dict[str, int] = {}
+        for rid in advisory_rule_counts:
+            p = _provider_prefix(rid)
+            provider_counts[p] = provider_counts.get(p, 0) + 1
+        provider_order = ["AWS", "Azure", "GCP", "Alibaba", "Oracle", "Docker", "Secrets", "Other"]
+        provider_summary = ", ".join(
+            f"{p} ({provider_counts[p]})" for p in provider_order if p in provider_counts
+        )
+
         lines.extend(
             [
                 "",
                 "## What Still Needs Attention",
+                "",
+                f"{len(advisory_rule_counts)} rule IDs with advisory findings remain.",
+            ]
+        )
+        if transform_eligible_count:
+            lines.append(
+                f"- Eligible for auto-fix next run: {transform_eligible_count}"
+                " (add to `finding_policy.auto_fix_allow`)"
+            )
+        if policy_excluded_count:
+            lines.append(f"- Intentionally left advisory by policy: {policy_excluded_count}")
+        if manual_only_count:
+            lines.append(f"- Manual-only: {manual_only_count}")
+        if provider_summary:
+            lines.append(f"- Providers represented: {provider_summary}.")
+        if policy_excluded_count:
+            lines.append(
+                "Some advisory findings below were intentionally left unchanged by policy, not because remediation failed."
+            )
+
+        lines.extend(
+            [
+                "",
+                "<details>",
+                f"<summary>Full rule breakdown ({len(advisory_rule_counts)} rules)</summary>",
+                "",
             ]
         )
         for rid in sorted(advisory_rule_counts):
@@ -255,23 +393,26 @@ def build_fix_pr_body(
             sanara_id = advisory_rule_sanara_ids.get(rid)
             label = _format_source_rule(rid, sanara_id)
             instance_word = "instance" if count == 1 else "instances"
-            if _SUPERSEDED_BY.get(rid) in attempted_rules:
+            if advisory_rule_blocked_by_policy.get(rid, False):
                 lines.append(
                     f"- {label}: {count} {instance_word}"
-                    " — Not eligible for auto-fix (a conflicting fix was already applied in this PR)"
+                    " — transform available, but currently held back by path policy"
+                )
+            elif _SUPERSEDED_BY.get(rid) in attempted_rules:
+                lines.append(
+                    f"- {label}: {count} {instance_word}"
+                    " — not eligible (conflicting fix already applied)"
                 )
             elif not advisory_rule_transform_available.get(rid, False):
-                no_label_suffix = (
-                    " (no friendly labels yet)"
-                    if not sanara_id or sanara_id.startswith("checkov.unmapped.")
-                    else ""
-                )
                 lines.append(
-                    f"- {label}{no_label_suffix}: {count} {instance_word}"
-                    " — no transform available, manual fix required"
+                    f"- {label}: {count} {instance_word} — no transform, manual fix required"
                 )
             else:
-                lines.append(f"- {label}: {count} {instance_word}")
+                lines.append(
+                    f"- {label}: {count} {instance_word} — transform available, eligible for auto-fix"
+                )
+        lines.append("</details>")
+
         if eligible_rule_ids:
             lines.extend(
                 [
@@ -296,7 +437,7 @@ def build_fix_pr_body(
         lines.append(
             "- These LLM-inferred suggestions are additional hardening ideas not already surfaced by scanner findings."
         )
-        for item in advisor[:3]:
+        for item in advisor:
             location = ""
             file_path = str(item.get("file_path", "")).strip()
             resource_type = str(item.get("resource_type", "")).strip()
@@ -306,9 +447,9 @@ def build_fix_pr_body(
             if resource_type or resource_name:
                 resource = f"{resource_type}.{resource_name}".strip(".")
                 location = f"{location} ({resource})".strip()
-            source = str(item.get("source", "")).strip().upper() or "ADVISOR"
+            severity = str(item.get("severity", "")).upper()
             lines.append(
-                f"- [{str(item.get('severity', '')).upper()}][{source}] {str(item.get('title', '')).strip() or 'Additional security guidance'}"
+                f"- [{severity}] {str(item.get('title', '')).strip() or 'Additional security guidance'}"
                 + (f" - `{location}`" if location else "")
             )
             recommendation = str(item.get("recommendation", "")).strip()
@@ -324,14 +465,26 @@ def build_fix_pr_body(
             "- [x] Terraform fmt",
         ]
     )
+    if pre_existing_tf_failure:
+        lines.extend(
+            [
+                "",
+                "> **Note:** `terraform init` / `validate` was already failing on the base branch "
+                "before this fix was applied. This PR addresses only the security findings listed "
+                "above; the pre-existing terraform failure is unrelated to these changes.",
+            ]
+        )
     if terraform_init_ok is not None:
         lines.extend(
             [
                 f"- {_check(terraform_init_ok)} Terraform init",
                 f"- {_check(terraform_validate_ok)} Terraform validate",
-                f"- {_check(terraform_plan_ok)} Terraform plan",
             ]
         )
+        if plan_required:
+            lines.append(f"- {_check(terraform_plan_ok)} Terraform plan")
+        else:
+            lines.append("- [ ] Terraform plan")
     elif not plan_required:
         lines.extend(
             [

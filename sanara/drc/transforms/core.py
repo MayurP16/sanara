@@ -38,13 +38,76 @@ def _module_tf_files(module_dir: Path) -> list[Path]:
 
 
 def _find_s3_related_block(files: list[Path], resource_type: str, bucket_resource_name: str):
-    bucket_ref = f"aws_s3_bucket.{bucket_resource_name}.id"
-    matches = [b for b in find_resource_blocks(files, resource_type) if bucket_ref in b.text]
+    if not str(bucket_resource_name or "").strip():
+        raise DrcError(
+            "INVALID_TARGET_RESOURCE", f"Missing bucket resource name for {resource_type}"
+        )
+    bucket_token = f"aws_s3_bucket.{bucket_resource_name}"
+    directory_token = f"aws_s3_directory_bucket.{bucket_resource_name}"
+    matches = [
+        b
+        for b in find_resource_blocks(files, resource_type)
+        if bucket_token in b.text or directory_token in b.text
+    ]
     if len(matches) > 1:
         raise DrcError(
             "AMBIGUOUS_TARGET", f"Ambiguous {resource_type} for bucket {bucket_resource_name}"
         )
     return matches[0] if matches else None
+
+
+def _s3_bucket_ref(resource_name: str, attr: str = "id") -> str:
+    name = str(resource_name or "").strip()
+    if not name:
+        raise DrcError("INVALID_TARGET_RESOURCE", "Missing aws_s3_bucket resource name")
+    return f"aws_s3_bucket.{name}.{attr}"
+
+
+def _has_meta_argument(block_text: str, arg: str) -> bool:
+    return bool(re.search(rf"^\s*{re.escape(arg)}\s*=", block_text, re.MULTILINE))
+
+
+def _s3_resource_expr(files: list[Path], resource_name: str, attr: str = "id") -> str:
+    name = str(resource_name or "").strip()
+    if not name:
+        raise DrcError("INVALID_TARGET_RESOURCE", "Missing aws_s3_bucket resource name")
+
+    try:
+        bucket_block = find_resource_block(files, "aws_s3_bucket", name)
+    except DrcError:
+        bucket_block = None
+    try:
+        directory_block = find_resource_block(files, "aws_s3_directory_bucket", name)
+    except DrcError:
+        directory_block = None
+
+    bucket_index = "[0]" if bucket_block and _has_meta_argument(bucket_block.text, "count") else ""
+    directory_index = (
+        "[0]" if directory_block and _has_meta_argument(directory_block.text, "count") else ""
+    )
+
+    bucket_expr = f"aws_s3_bucket.{name}{bucket_index}.{attr}"
+    directory_attr = "bucket" if attr == "id" else attr
+    directory_expr = f"aws_s3_directory_bucket.{name}{directory_index}.{directory_attr}"
+
+    if bucket_block and directory_block:
+        # Try to extract the boolean variable that controls the directory bucket's count.
+        # e.g. `count = var.create_s3_directory_bucket ? 1 : 0` → var.create_s3_directory_bucket
+        # Fall back to the conventional var.is_directory_bucket when no clear var is found.
+        count_var = "var.is_directory_bucket"
+        count_match = re.search(
+            r"^\s*count\s*=\s*(var\.\w+)\s*\?",
+            directory_block.text,
+            re.MULTILINE,
+        )
+        if count_match:
+            count_var = count_match.group(1)
+        return f"{count_var} ? {directory_expr} : {bucket_expr}"
+    if bucket_block:
+        return bucket_expr
+    if directory_block:
+        return directory_expr
+    return _s3_bucket_ref(name, attr)
 
 
 def _ensure_dynamodb_sse_cmk(block_text: str, kms_ref: str) -> tuple[str, bool]:
@@ -101,7 +164,7 @@ def t1_public_access_block(
     target_file = file_path if file_path.exists() else module_dir / "sanara_security.tf"
     resource = (
         f'resource "aws_s3_bucket_public_access_block" "{resource_name}_pab" {{\n'
-        f"  bucket = aws_s3_bucket.{resource_name}.id\n"
+        f"  bucket = {_s3_resource_expr(files, resource_name)}\n"
         "  block_public_acls       = true\n"
         "  block_public_policy     = true\n"
         "  ignore_public_acls      = true\n"
@@ -137,7 +200,7 @@ def t2_s3_sse(
                 block.file_path,
                 _contract("aws.s3.sse_default", ["existing AES256 retained"]),
             )
-        bucket_expr = f"aws_s3_bucket.{resource_name}.id"
+        bucket_expr = _s3_resource_expr(files, resource_name)
         bucket_match = re.search(r"^\s*bucket\s*=\s*(.+)$", block.text, re.MULTILINE)
         if bucket_match:
             bucket_expr = bucket_match.group(1).strip()
@@ -164,7 +227,7 @@ def t2_s3_sse(
     target_file = file_path if file_path.exists() else module_dir / "sanara_security.tf"
     resource = (
         f'resource "aws_s3_bucket_server_side_encryption_configuration" "{resource_name}_sse" {{\n'
-        f"  bucket = aws_s3_bucket.{resource_name}.id\n"
+        f"  bucket = {_s3_resource_expr(files, resource_name)}\n"
         "  rule {\n"
         "    apply_server_side_encryption_by_default {\n"
         '      sse_algorithm = "AES256"\n'
@@ -206,7 +269,7 @@ def t3_s3_versioning(
     target_file = file_path if file_path.exists() else module_dir / "sanara_security.tf"
     resource = (
         f'resource "aws_s3_bucket_versioning" "{resource_name}_versioning" {{\n'
-        f"  bucket = aws_s3_bucket.{resource_name}.id\n"
+        f"  bucket = {_s3_resource_expr(files, resource_name)}\n"
         "  versioning_configuration {\n"
         '    status = "Enabled"\n'
         "  }\n"
@@ -465,7 +528,7 @@ def t14_s3_policy_secure_transport(
         block = _find_s3_related_block(files, "aws_s3_bucket_policy", resource_name)
         if block is None:
             raise DrcError("NO_TARGET_RESOURCE", f"No aws_s3_bucket_policy for {resource_name}")
-        bucket_ref = f"aws_s3_bucket.{resource_name}.id"
+        bucket_ref = _s3_resource_expr(files, resource_name)
 
     bucket_arn_expr = (
         f"${{{bucket_ref.replace('.id', '.arn')}}}"
@@ -552,7 +615,7 @@ def t15_s3_sse_kms(
     target_file = file_path if file_path.exists() else module_dir / "sanara_security.tf"
     resource = (
         f'resource "aws_s3_bucket_server_side_encryption_configuration" "{resource_name}_sse" {{\n'
-        f"  bucket = aws_s3_bucket.{resource_name}.id\n"
+        f"  bucket = {_s3_resource_expr(files, resource_name)}\n"
         "  rule {\n"
         "    apply_server_side_encryption_by_default {\n"
         '      sse_algorithm     = "aws:kms"\n'
@@ -574,6 +637,7 @@ def t16_s3_access_logging(
 ) -> TransformResult:
     _ = policy
     files = _module_tf_files(module_dir)
+    bucket_expr = _s3_resource_expr(files, resource_name)
     existing = _find_s3_related_block(files, "aws_s3_bucket_logging", resource_name)
     if existing:
         return TransformResult(
@@ -596,7 +660,7 @@ def t16_s3_access_logging(
         target_file,
         (
             f'resource "aws_s3_bucket_logging" "{resource_name}_logging" {{\n'
-            f"  bucket        = aws_s3_bucket.{resource_name}.id\n"
+            f"  bucket        = {bucket_expr}\n"
             f"  target_bucket = aws_s3_bucket.{log_bucket_name}.id\n"
             '  target_prefix = "logs/"\n'
             "}"
@@ -685,7 +749,7 @@ def t18_s3_acl_disabled(
     target_file = file_path if file_path.exists() else module_dir / "sanara_security.tf"
     resource = (
         f'resource "aws_s3_bucket_ownership_controls" "{resource_name}_ownership_controls" {{\n'
-        f"  bucket = aws_s3_bucket.{resource_name}.id\n"
+        f"  bucket = {_s3_resource_expr(files, resource_name)}\n"
         "  rule {\n"
         '    object_ownership = "BucketOwnerEnforced"\n'
         "  }\n"
@@ -836,7 +900,7 @@ def t19_s3_event_notifications_enabled(
             f"        Resource  = aws_sns_topic.{topic_name}.arn\n"
             "        Condition = {\n"
             "          ArnLike = {\n"
-            f'            "aws:SourceArn" = aws_s3_bucket.{resource_name}.arn\n'
+            f'            "aws:SourceArn" = {_s3_resource_expr(files, resource_name, "arn")}\n'
             "          }\n"
             "        }\n"
             "      }\n"
@@ -849,7 +913,7 @@ def t19_s3_event_notifications_enabled(
         target_file,
         (
             f'resource "aws_s3_bucket_notification" "{resource_name}_notifications" {{\n'
-            f"  bucket = aws_s3_bucket.{resource_name}.id\n"
+            f"  bucket = {_s3_resource_expr(files, resource_name)}\n"
             "  topic {\n"
             f"    topic_arn = aws_sns_topic.{topic_name}.arn\n"
             '    events    = ["s3:ObjectCreated:*"]\n'

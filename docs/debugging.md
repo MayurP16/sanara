@@ -7,14 +7,18 @@ When remediation fails, inspect artifacts in order:
    Check transform failure code and preconditions.
 3. `drc/patch.diff`
    Validate patch shape and path scope.
-4. `terraform/*.log`
-   Identify `init` / `validate` / `plan` gate failure.
-5. `rescan/targeted_results_final.json`
+4. `terraform/baseline_checks.json`
+   Check whether `terraform init` / `validate` was already failing before Sanara's fix.
+   If `ok: false` here, the repo had a pre-existing Terraform failure — not caused by Sanara.
+5. `terraform/*.log`
+   Identify `init` / `validate` / `plan` gate failure in the post-fix run.
+   Compare against `terraform/baseline_checks.json` to confirm whether Sanara introduced the failure (`tf_regression`) or it was pre-existing.
+6. `rescan/targeted_results_final.json`
    Determine final blocking, advisory, and ignored findings after the last remediation stage.
    `rescan/targeted_results.json` is a convenience alias to the latest targeted results.
-6. `runlog.jsonl`
+7. `runlog.jsonl`
    Locate failure state and timings.
-7. `agentic/*` if used
+8. `agentic/*` if used
    Review ledger scope and response trace.
 
 Code navigation for triage:

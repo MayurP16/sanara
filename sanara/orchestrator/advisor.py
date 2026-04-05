@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import hashlib
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from sanara.agentic.fallback import run_agentic_fallback
+
+_LOG = logging.getLogger(__name__)
 
 
 @dataclass
@@ -238,6 +241,13 @@ def _drop_scanner_overlaps(
         if has_precise_resource and any(
             (rid, key) in scanner_rule_resource_keys for rid in related_ids
         ):
+            _LOG.info(
+                "advisor drop_overlap id=%s resource=%s/%s related_ids=%s",
+                item.get("id", ""),
+                resource_type,
+                resource_name,
+                sorted(related_ids),
+            )
             continue
 
         out.append(item)
@@ -312,8 +322,8 @@ def _llm_findings(
             "Focus on high-signal, non-noisy, actionable checks.",
             "Return at most 5 items with severity critical|moderate.",
             "Output JSON array only with keys: id, severity, title, description, file_path, resource_type, resource_name, recommendation, related_scanner_rule_ids.",
-            "If an issue overlaps scanner findings, include the matching scanner rule IDs in related_scanner_rule_ids (e.g. CKV_AWS_145).",
-            "Only return non-scanner signals when possible; if uncertain whether it's scanner-covered, include it with related_scanner_rule_ids set.",
+            "Only populate related_scanner_rule_ids when the finding is the exact same check as an existing scanner finding for that resource — leave it empty for new concerns.",
+            "Skip issues that are identical to an existing scanner finding (same rule, same resource). Only return genuinely new signals.",
             "Do not return patch/diff.",
             f"Changed files count: {len(tf_files)}",
             f"Diff length: {len(diff_text)}",
@@ -400,11 +410,19 @@ def run_post_fix_advisor(
             "",
         )
 
+    raw_count = len(llm_items)
     llm_items = _drop_scanner_overlaps(llm_items, scanner_visible_findings)
+    post_overlap_count = len(llm_items)
     findings = _enrich_and_filter(
         llm_items,
         min_severity=str(getattr(policy, "advisor_min_severity", "moderate")),
         max_findings=int(getattr(policy, "advisor_max_findings", 5)),
+    )
+    _LOG.info(
+        "advisor filter llm_raw=%d post_overlap=%d post_enrich=%d",
+        raw_count,
+        post_overlap_count,
+        len(findings),
     )
     return AdvisorResult(
         findings=findings,

@@ -135,6 +135,75 @@ jobs:
 
 Start with `publish_dry_run: "true"` on first rollout. Sanara will validate and log what it would remediate without opening any PRs. Switch to `"false"` once you're comfortable with the output.
 
+### Common module-repo setup: keep scanning `examples/**`, but make them advisory
+
+For Terraform module repositories, a common pattern is:
+
+- keep scanning `examples/**` so you still see security issues there
+- do not let `examples/**` findings drive blocking remediation PRs by default
+- continue treating the root module and `modules/**` as normal blocking scope
+
+Use `.sanara/policy.yml` for that:
+
+```yaml
+module_repo_defaults: true
+
+finding_policy:
+  auto_fix_allow:
+    - CKV_AWS_21
+    - CKV_AWS_53
+    - CKV_AWS_54
+    - CKV_AWS_55
+    - CKV_AWS_56
+    - CKV_AWS_145
+    - CKV2_AWS_6
+
+  by_path:
+    - path: modules/**
+      auto_fix_mode: auto_fix_safe
+    - path: examples/**
+      auto_fix_mode: suggest_only
+      category: module_examples
+```
+
+What this does:
+
+- `module_repo_defaults: true`
+  - adds a built-in default that treats `examples/**` as advisory (`suggest_only`)
+- `finding_policy.by_path`
+  - lets you override behavior by file path
+- `examples/** -> suggest_only`
+  - findings are still scanned and reported, but they do not drive code edits or blocking outcomes
+
+Path rules are evaluated as the final normal override, so `examples/** -> suggest_only`
+still wins even if a matching rule ID appears in `auto_fix_allow`.
+
+If you want to completely stop scanning certain rules everywhere, use `scan_policy` instead:
+
+```yaml
+scan_policy:
+  skip_ids:
+    - CKV_AWS_999
+```
+
+If you want to keep scanning examples and allow auto-fix there, do not set them to `suggest_only`.
+
+### What belongs in `.sanara/policy.yml` vs `.sanara/harness.yml`
+
+- `.sanara/policy.yml`
+  - controls what Sanara scans, what it tries to fix, and what is blocking vs advisory
+- `.sanara/harness.yml`
+  - controls where Terraform `init` / `validate` / `plan` runs
+
+Examples:
+
+- Want to scan `examples/**` but make them non-blocking:
+  - use `.sanara/policy.yml`
+- Want to stop Terraform validation from running in `examples/**`:
+  - use `.sanara/harness.yml`
+- Want to exclude a scanner rule entirely:
+  - use `.sanara/policy.yml` `scan_policy.skip_ids`
+
 ### Trigger behavior
 
 Sanara changes scope based on the GitHub event that starts the workflow:

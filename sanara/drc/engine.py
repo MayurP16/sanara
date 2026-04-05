@@ -45,11 +45,27 @@ def apply_drc(workspace: Path, findings: list[dict[str, Any]], policy: Policy) -
         transform = REGISTRY[rule]
         target = f.get("target", {})
         try:
+            # Resolve module_dir: may be absolute (from scanner) or relative to workspace.
+            raw_module_dir = target.get("module_dir", ".")
+            module_dir = Path(raw_module_dir)
+            if not module_dir.is_absolute():
+                module_dir = workspace / module_dir
+
+            # Resolve file_path: scanners emit paths relative to module_dir but may
+            # include a leading slash (e.g. "/s3.tf").  Strip it before joining so that
+            # Path("/workspace") / "/s3.tf" does not silently resolve to "/s3.tf" (root).
+            raw_file_path = target.get("file_path", "main.tf")
+            file_path = (
+                module_dir / Path(raw_file_path).relative_to("/")
+                if Path(raw_file_path).is_absolute()
+                else module_dir / raw_file_path
+            )
+
             # Transforms receive the module root and concrete file path so they can
             # make localized edits without having to re-discover repository context.
             result = transform(
-                workspace / target.get("module_dir", "."),
-                workspace / target.get("file_path", "main.tf"),
+                module_dir,
+                file_path,
                 f.get("resource_type", ""),
                 f.get("resource_name", ""),
                 policy,

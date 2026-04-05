@@ -15,6 +15,7 @@ def _ctx():
         event_name="pull_request",
         actor="dev",
         is_fork=False,
+        is_cross_repo_pr=False,
     )
 
 
@@ -28,6 +29,7 @@ def test_reason_code_set_contains_expected_values() -> None:
         "no_changes",
         "remaining_findings",
         "tf_checks_failed",
+        "tf_regression",
         "missing_harness",
         "runtime_budget",
         "git_failure",

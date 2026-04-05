@@ -272,6 +272,66 @@
     "terraform_deprecated_interpolation": {
       "recipe_text": "Replace deprecated string-only interpolations like \"${var.foo}\" with direct references like var.foo.",
       "required_patch_tokens": []
+    },
+    "CKV2_AWS_6": {
+      "recipe_text": "Add a new aws_s3_bucket_public_access_block resource in the SAME FILE at the END of the file (after the last line of the file), not inline. Reference the target aws_s3_bucket block. Set bucket = aws_s3_bucket.<bucket_name>.id (replace <bucket_name> with the exact resource name of the failing bucket). Set block_public_acls = true, block_public_policy = true, ignore_public_acls = true, restrict_public_buckets = true.",
+      "required_patch_tokens": [
+        "aws_s3_bucket_public_access_block",
+        "block_public_acls",
+        "restrict_public_buckets"
+      ]
+    },
+    "CKV2_AWS_62": {
+      "recipe_text": "Add a new aws_s3_bucket_notification resource at the END of the file (after the last line of the file), not inline. Reference the target aws_s3_bucket. Set bucket = aws_s3_bucket.<bucket_name>.id (replace <bucket_name> with the exact resource name). Add at least one lambda_function, queue, or topic notification block with events = [\"s3:ObjectCreated:*\"]. Place it after the target bucket block.",
+      "required_patch_tokens": [
+        "aws_s3_bucket_notification",
+        "events"
+      ]
+    },
+    "CKV_AWS_145": {
+      "recipe_text": "Add a new aws_s3_bucket_server_side_encryption_configuration resource at the END of the file (after the last line of the file), not inline. Reference the target aws_s3_bucket. Set bucket = aws_s3_bucket.<bucket_name>.id (replace <bucket_name> with the exact resource name). Add: rule { apply_server_side_encryption_by_default { sse_algorithm = \"aws:kms\" } }.",
+      "required_patch_tokens": [
+        "aws_s3_bucket_server_side_encryption_configuration",
+        "aws:kms"
+      ]
+    },
+    "CKV_AWS_18": {
+      "recipe_text": "Add a new aws_s3_bucket_logging resource at the END of the file (after the last line of the file), not inline. Reference the target aws_s3_bucket. Set bucket = aws_s3_bucket.<bucket_name>.id (replace <bucket_name> with the exact resource name). Set target_bucket = aws_s3_bucket.<bucket_name>.id and target_prefix = \"log/\".",
+      "required_patch_tokens": [
+        "aws_s3_bucket_logging",
+        "target_bucket"
+      ]
+    },
+    "CKV_AWS_21": {
+      "recipe_text": "Add a new aws_s3_bucket_versioning resource at the END of the file (after the last line of the file), not inline. Reference the target aws_s3_bucket. Set bucket = aws_s3_bucket.<bucket_name>.id (replace <bucket_name> with the exact resource name). Add: versioning_configuration { status = \"Enabled\" }.",
+      "required_patch_tokens": [
+        "aws_s3_bucket_versioning",
+        "Enabled"
+      ]
+    },
+    "CKV_AWS_3": {
+      "recipe_text": "Add/ensure encrypted = true on the target aws_ebs_volume resource.",
+      "required_patch_tokens": [
+        "encrypted"
+      ]
+    },
+    "CKV_AWS_7": {
+      "recipe_text": "Add/ensure enable_key_rotation = true on the target aws_kms_key resource.",
+      "required_patch_tokens": [
+        "enable_key_rotation"
+      ]
+    },
+    "CKV_AWS_17": {
+      "recipe_text": "Add/ensure publicly_accessible = false on the target aws_db_instance resource.",
+      "required_patch_tokens": [
+        "publicly_accessible"
+      ]
+    },
+    "CKV2_AWS_64": {
+      "recipe_text": "Add a policy attribute to the target aws_kms_key resource with a JSON policy that includes at least one Statement allowing the account root principal (arn:aws:iam::<account_id>:root) to perform kms:* actions. Use a heredoc or jsonencode().",
+      "required_patch_tokens": [
+        "policy"
+      ]
     }
   }
 }

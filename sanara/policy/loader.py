@@ -53,6 +53,22 @@ def _apply_environment_overrides(data: dict[str, Any], env_name: str) -> dict[st
     return merged
 
 
+def _apply_module_repo_defaults(data: dict[str, Any]) -> dict[str, Any]:
+    if not bool(data.get("module_repo_defaults", False)):
+        return data
+    out = dict(data)
+    finding = dict(out.get("finding_policy", {}) or {})
+    by_path = list(finding.get("by_path", []) or [])
+    default_rule = {
+        "path": "examples/**",
+        "auto_fix_mode": "suggest_only",
+        "category": "module_examples",
+    }
+    finding["by_path"] = [default_rule, *by_path]
+    out["finding_policy"] = finding
+    return out
+
+
 def load_policy(workspace: Path, action_inputs: dict[str, Any] | None = None) -> Policy:
     path = workspace / ".sanara/policy.yml"
     data = read_yaml(path) if path.exists() else {}
@@ -62,10 +78,12 @@ def load_policy(workspace: Path, action_inputs: dict[str, Any] | None = None) ->
         data = {**data, **{k: v for k, v in action_inputs.items() if v is not None}}
     env_name = _resolve_environment_name(data, action_inputs)
     data = _apply_environment_overrides(data, env_name)
+    data = _apply_module_repo_defaults(data)
     advisor = data.get("advisor", {}) if isinstance(data.get("advisor", {}), dict) else {}
     return Policy(
         rule_pack_version=data.get("rule_pack_version", "v0.1.0-alpha.1"),
         environment=str(env_name or data.get("environment", "default")),
+        module_repo_defaults=bool(data.get("module_repo_defaults", False)),
         allow_agentic=bool(data.get("allow_agentic", False)),
         require_cmk_for=list(data.get("require_cmk_for", [])),
         allow_rules=list(data.get("allow_rules", [])),

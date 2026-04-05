@@ -8,6 +8,7 @@ from typing import Any
 class Policy:
     rule_pack_version: str = "v0.1.0-alpha.1"
     environment: str = "default"
+    module_repo_defaults: bool = False
     allow_agentic: bool = False
     require_cmk_for: list[str] = field(default_factory=list)
     allow_rules: list[str] = field(default_factory=list)

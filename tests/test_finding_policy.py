@@ -159,3 +159,128 @@ def test_load_policy_fails_fast_on_advanced_finding_policy_key(tmp_path: Path) -
     except PolicyValidationError as exc:
         assert "unknown keys in finding_policy" in str(exc)
         assert "by_check_id" in str(exc)
+
+
+def test_finding_policy_by_path_marks_examples_advisory() -> None:
+    policy = Policy(
+        finding_policy={
+            "by_path": [
+                {
+                    "path": "examples/**",
+                    "auto_fix_mode": "suggest_only",
+                    "category": "module_examples",
+                }
+            ]
+        }
+    )
+    finding = {
+        "source_rule_id": "CKV_AWS_18",
+        "resource_type": "aws_s3_bucket",
+        "resource_name": "data",
+        "file_path": "examples/complete/main.tf",
+        "sanara_rule_id": "aws.s3.access_logging_enabled",
+    }
+    decision = finding_policy_decision(policy, finding)
+    assert decision["auto_fix_mode"] == "suggest_only"
+    assert decision["decision_mode"] == "soft_fail"
+
+
+def test_finding_policy_by_path_overrides_auto_fix_allow() -> None:
+    policy = Policy(
+        finding_policy={
+            "auto_fix_allow": ["CKV_AWS_18"],
+            "by_path": [
+                {
+                    "path": "examples/**",
+                    "auto_fix_mode": "suggest_only",
+                    "category": "module_examples",
+                }
+            ],
+        }
+    )
+    finding = {
+        "source_rule_id": "CKV_AWS_18",
+        "resource_type": "aws_s3_bucket",
+        "resource_name": "data",
+        "file_path": "examples/complete/main.tf",
+        "sanara_rule_id": "aws.s3.access_logging_enabled",
+    }
+    decision = finding_policy_decision(policy, finding)
+    assert decision["auto_fix_mode"] == "suggest_only"
+    assert decision["decision_mode"] == "soft_fail"
+    assert decision["matched_policy_source"] == "by_path[0]"
+
+
+def test_finding_policy_by_path_uses_normalized_target_file_path() -> None:
+    policy = Policy(
+        finding_policy={
+            "auto_fix_allow": ["CKV_AWS_18"],
+            "by_path": [
+                {
+                    "path": "examples/**",
+                    "auto_fix_mode": "suggest_only",
+                    "category": "module_examples",
+                }
+            ],
+        }
+    )
+    finding = {
+        "source_rule_id": "CKV_AWS_18",
+        "resource_type": "aws_s3_bucket",
+        "resource_name": "data",
+        "target": {
+            "module_dir": "/github/workspace/examples/complete",
+            "file_path": "examples/complete/main.tf",
+            "line_range": "1-2",
+        },
+        "sanara_rule_id": "aws.s3.access_logging_enabled",
+    }
+    decision = finding_policy_decision(policy, finding)
+    assert decision["auto_fix_mode"] == "suggest_only"
+    assert decision["decision_mode"] == "soft_fail"
+    assert decision["matched_policy_source"] == "by_path[0]"
+
+
+def test_finding_policy_by_path_resolves_module_dir_relative_file() -> None:
+    policy = Policy(
+        finding_policy={
+            "auto_fix_allow": ["CKV_AWS_18"],
+            "by_path": [
+                {
+                    "path": "examples/**",
+                    "auto_fix_mode": "suggest_only",
+                    "category": "module_examples",
+                }
+            ],
+        }
+    )
+    finding = {
+        "source_rule_id": "CKV_AWS_18",
+        "resource_type": "aws_s3_bucket",
+        "resource_name": "data",
+        "target": {
+            "module_dir": "/github/workspace/examples/complete",
+            "file_path": "/main.tf",
+            "line_range": "1-2",
+        },
+        "sanara_rule_id": "aws.s3.access_logging_enabled",
+    }
+    decision = finding_policy_decision(policy, finding)
+    assert decision["auto_fix_mode"] == "suggest_only"
+    assert decision["decision_mode"] == "soft_fail"
+    assert decision["matched_policy_source"] == "by_path[0]"
+
+
+def test_load_policy_module_repo_defaults_applies_examples_by_path(tmp_path: Path) -> None:
+    policy_dir = tmp_path / ".sanara"
+    policy_dir.mkdir()
+    (policy_dir / "policy.yml").write_text(
+        "module_repo_defaults: true\nfinding_policy:\n  by_path:\n    - path: modules/**\n      auto_fix_mode: auto_fix_safe\n",
+        encoding="utf-8",
+    )
+    policy = load_policy(tmp_path)
+    assert policy.module_repo_defaults is True
+    by_path = policy.finding_policy["by_path"]
+    assert by_path[0]["path"] == "examples/**"
+    assert by_path[0]["auto_fix_mode"] == "suggest_only"
+    assert by_path[1]["path"] == "modules/**"

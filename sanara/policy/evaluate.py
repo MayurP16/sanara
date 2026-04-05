@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 from fnmatch import fnmatch
+import os
+from pathlib import Path
 from typing import Any
 
 from sanara.policy.classify import (
@@ -23,6 +25,46 @@ def _expiry_active(expiry: str | None) -> bool:
         return True
 
 
+def _normalized_rel_path(path: str) -> str:
+    return str(path or "").strip().replace("\\", "/").lstrip("/")
+
+
+def _workspace_relative_policy_path(finding: dict[str, Any]) -> str:
+    target = finding.get("target", {}) if isinstance(finding.get("target"), dict) else {}
+    raw_file_path = _normalized_rel_path(
+        str(target.get("file_path") or finding.get("file_path", ""))
+    )
+    if not raw_file_path:
+        return ""
+    if "/" in raw_file_path:
+        return raw_file_path
+
+    module_dir = str(target.get("module_dir", "")).strip()
+    if not module_dir:
+        return raw_file_path
+
+    module_path = Path(module_dir)
+    combined = module_path / raw_file_path
+
+    workspace_root = str(os.environ.get("GITHUB_WORKSPACE", "")).strip()
+    if workspace_root:
+        try:
+            return combined.relative_to(Path(workspace_root)).as_posix()
+        except ValueError:
+            pass
+
+    # GitHub Actions runs inside /github/workspace by default; keep a fallback so
+    # path-based policy still works even if GITHUB_WORKSPACE is unavailable.
+    for marker in ("/github/workspace/", "/github/workspace"):
+        combined_posix = combined.as_posix()
+        idx = combined_posix.find(marker)
+        if idx >= 0:
+            rel = combined_posix[idx + len(marker) :]
+            return _normalized_rel_path(rel)
+
+    return raw_file_path
+
+
 def _match_suppression(cfg: dict[str, Any], finding: dict[str, Any]) -> dict[str, str] | None:
     """Return the first active suppression that matches the finding."""
     suppressions = cfg.get("suppressions", [])
@@ -32,7 +74,7 @@ def _match_suppression(cfg: dict[str, Any], finding: dict[str, Any]) -> dict[str
     entity = str(finding.get("resource_type", ""))
     name = str(finding.get("resource_name", ""))
     resource_key = f"{entity}.{name}".rstrip(".")
-    file_path = str(finding.get("file_path", ""))
+    file_path = _workspace_relative_policy_path(finding)
     for i, s in enumerate(suppressions):
         if not isinstance(s, dict):
             continue
@@ -93,7 +135,7 @@ def finding_policy_decision(policy: Policy, finding: dict[str, Any]) -> dict[str
     source_rule_id = str(finding.get("source_rule_id", "")).strip().upper()
     resource_type = str(finding.get("resource_type", "")).strip()
     resource_name = str(finding.get("resource_name", "")).strip()
-    file_path = str(finding.get("file_path", "")).strip()
+    file_path = _workspace_relative_policy_path(finding)
     sanara_rule_id = str(finding.get("sanara_rule_id", "")).strip()
     classification = classify_checkov_finding(source_rule_id, resource_type)
     cfg = policy.finding_policy if isinstance(policy.finding_policy, dict) else {}
@@ -152,15 +194,6 @@ def finding_policy_decision(policy: Policy, finding: dict[str, Any]) -> dict[str
             mode = str(eov.get("auto_fix_mode", mode))
             category = str(eov.get("category", category))
             matched_source = f"by_check_id_entity:{source_rule_id}:{resource_type}"
-    for idx, item in enumerate(by_path):
-        if not isinstance(item, dict):
-            continue
-        pattern = str(item.get("path", ""))
-        if pattern and file_path and fnmatch(file_path, pattern):
-            mode = str(item.get("auto_fix_mode", mode))
-            category = str(item.get("category", category))
-            matched_source = f"by_path[{idx}]"
-
     if source_rule_id in ignore:
         mode = "ignore"
     elif source_rule_id in suggest_only:
@@ -169,6 +202,17 @@ def finding_policy_decision(policy: Policy, finding: dict[str, Any]) -> dict[str
         mode = "auto_fix_safe"
     elif source_rule_id in auto_fix_deny and mode.startswith("auto_fix"):
         mode = "suggest_only"
+
+    # Path rules are the last normal override so operators can carve out
+    # directories such as examples/** even when a rule is globally allowed.
+    for idx, item in enumerate(by_path):
+        if not isinstance(item, dict):
+            continue
+        pattern = str(item.get("path", ""))
+        if pattern and file_path and fnmatch(file_path, pattern):
+            mode = str(item.get("auto_fix_mode", mode))
+            category = str(item.get("category", category))
+            matched_source = f"by_path[{idx}]"
 
     # Decision mode follows the final auto-fix mode unless the policy forces an
     # explicit pass/fail posture for this scanner rule.
