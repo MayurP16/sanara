@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
-- Repair profiles for 9 previously unguided rules: `CKV2_AWS_6`, `CKV2_AWS_62`, `CKV_AWS_145`, `CKV_AWS_18`, `CKV_AWS_21`, `CKV_AWS_3`, `CKV_AWS_7`, `CKV_AWS_17`, `CKV2_AWS_64`. Rules requiring new resource blocks now include explicit placement and reference instructions.
+- Repair profiles for 9 previously unguided rules. Rules requiring new resource blocks now include explicit placement and reference instructions.
 - Baseline terraform run details logged per-run (init/validate exit codes and stderr) so failures are visible in logs without digging into the artifact.
 
 ### Changed
