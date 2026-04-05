@@ -67,12 +67,17 @@ class FakeAgentic:
         self.trace = [{"event": "request"}, {"event": "response"}]
 
 
-def _event(is_fork: bool = False) -> dict:
+def _event(is_fork: bool = False, cross_repo: bool = False) -> dict:
+    head_repo_name = "contributor/repo" if cross_repo else "org/repo"
     return {
         "pull_request": {
             "number": 42,
-            "base": {"sha": "base", "ref": "main"},
-            "head": {"sha": "head", "ref": "feature", "repo": {"fork": is_fork}},
+            "base": {"sha": "base", "ref": "main", "repo": {"full_name": "org/repo"}},
+            "head": {
+                "sha": "head",
+                "ref": "feature",
+                "repo": {"fork": is_fork, "full_name": head_repo_name},
+            },
         },
         "sender": {"login": "dev"},
         "repository": {"full_name": "org/repo"},
@@ -115,7 +120,7 @@ def _unmapped_checkov_result() -> dict:
 
 
 def _setup_workspace(
-    tmp_path: Path, *, is_fork: bool = False, policy_extra: str = ""
+    tmp_path: Path, *, is_fork: bool = False, cross_repo: bool = False, policy_extra: str = ""
 ) -> tuple[Path, Path]:
     workspace = tmp_path
     artifacts = workspace / "artifacts"
@@ -134,7 +139,10 @@ def _setup_workspace(
         "allow_agentic: false\nplan_required: true\n" + policy_extra, encoding="utf-8"
     )
     (workspace / ".sanara/harness.yml").write_text("version: 1\nruns: []\n", encoding="utf-8")
-    (workspace / "event.json").write_text(json.dumps(_event(is_fork=is_fork)), encoding="utf-8")
+    (workspace / "main.tf").write_text('resource "aws_ebs_volume" "data" {}\n', encoding="utf-8")
+    (workspace / "event.json").write_text(
+        json.dumps(_event(is_fork=is_fork, cross_repo=cross_repo)), encoding="utf-8"
+    )
     return workspace, artifacts
 
 
@@ -276,8 +284,8 @@ def test_opt_in_plan_required_false_allows_no_harness(monkeypatch, tmp_path: Pat
     assert FakeGitHubClient.instances[-1].created_prs
 
 
-def test_fork_disables_pr_creation(monkeypatch, tmp_path: Path) -> None:
-    workspace, artifacts = _setup_workspace(tmp_path, is_fork=True)
+def test_cross_repo_fork_posts_diff_comment_not_pr(monkeypatch, tmp_path: Path) -> None:
+    workspace, artifacts = _setup_workspace(tmp_path, cross_repo=True)
     monkeypatch.chdir(workspace)
     _patch_driver_basics(monkeypatch, workspace)
 
@@ -285,7 +293,23 @@ def test_fork_disables_pr_creation(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(driver, "GitHubClient", FakeGitHubClient)
     rc = driver.run_driver(workspace, workspace / "event.json", artifacts)
     assert rc == 0
-    assert not FakeGitHubClient.instances[-1].created_prs
+    client = FakeGitHubClient.instances[-1]
+    assert not client.created_prs
+    # Should have posted a diff comment on the fork PR
+    assert any("Sanara Security Fix" in c for c in client.comments)
+
+
+def test_same_repo_fork_creates_pr(monkeypatch, tmp_path: Path) -> None:
+    # is_fork=True but same repo (not a cross-repo PR) — should still create PR
+    workspace, artifacts = _setup_workspace(tmp_path, is_fork=True, cross_repo=False)
+    monkeypatch.chdir(workspace)
+    _patch_driver_basics(monkeypatch, workspace)
+
+    monkeypatch.setenv("GITHUB_TOKEN", "token")
+    monkeypatch.setattr(driver, "GitHubClient", FakeGitHubClient)
+    rc = driver.run_driver(workspace, workspace / "event.json", artifacts)
+    assert rc == 0
+    assert FakeGitHubClient.instances[-1].created_prs
 
 
 def test_dedup_skips_pr_creation(monkeypatch, tmp_path: Path) -> None:
@@ -482,7 +506,14 @@ def test_final_terraform_checks_run_after_agentic(monkeypatch, tmp_path: Path) -
         lambda *args, **kwargs: FakeAgentic(
             ok=True,
             patch_diff=(
-                "```diff\n" "diff --git a/main.tf b/main.tf\n" "+encrypted = true\n" "```\n"
+                "```diff\n"
+                "diff --git a/main.tf b/main.tf\n"
+                "--- a/main.tf\n"
+                "+++ b/main.tf\n"
+                "@@ -1 +1,2 @@\n"
+                ' resource "aws_ebs_volume" "data" {}\n'
+                "+encrypted = true\n"
+                "```\n"
             ),
         ),
     )

@@ -115,6 +115,29 @@ def test_harness_supports_explicit_init_and_plan_args(monkeypatch, tmp_path: Pat
     assert seen == [run["init"]["cmd"], run["validate"]["cmd"], run["plan"]["cmd"]]
 
 
+def test_harness_skips_validate_when_init_fails(monkeypatch, tmp_path: Path) -> None:
+    (tmp_path / "main.tf").write_text("terraform {}\n", encoding="utf-8")
+
+    seen: list[list[str]] = []
+
+    def _run(cmd, cwd, **kwargs):
+        seen.append(cmd)
+        # init fails; validate should not be called
+        return _Result(1 if cmd[1] == "init" else 0)
+
+    monkeypatch.setattr(harness, "run_cmd", _run)
+
+    result = harness.run_harness_checks(tmp_path)
+    assert not result.ok
+    run = result.runs[0]
+    assert run["init"]["code"] == 1
+    assert run["validate"]["code"] == 1
+    assert run["validate"]["stderr"] == "skipped: init failed"
+    # validate run_cmd was never actually called
+    assert all(cmd[1] == "init" or cmd[1] == "plan" for cmd in seen)
+    assert not any(cmd[1] == "validate" for cmd in seen)
+
+
 def test_harness_skips_plan_when_disabled(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / ".sanara").mkdir()
     (tmp_path / "main.tf").write_text("terraform {}\n", encoding="utf-8")

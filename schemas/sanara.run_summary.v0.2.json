@@ -53,6 +53,7 @@
               "attempt": {"type": "integer"},
               "stage": {"type": "string"},
               "reason": {"type": "string"},
+              "terraform_gate": {"type": "string"},
               "target_file": {"type": "string"},
               "target_file_exists_before": {"type": "boolean"},
               "changed_files": {"type": "array", "items": {"type": "string"}}

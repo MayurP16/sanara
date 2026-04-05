@@ -22,8 +22,12 @@ def test_detect_context_pr_payload_wins_over_ambient_env() -> None:
     ctx = detect_context(
         event={
             "pull_request": {
-                "base": {"sha": "base", "ref": "main"},
-                "head": {"sha": "head", "ref": "feature", "repo": {"fork": False}},
+                "base": {"sha": "base", "ref": "main", "repo": {"full_name": "org/repo"}},
+                "head": {
+                    "sha": "head",
+                    "ref": "feature",
+                    "repo": {"fork": False, "full_name": "org/repo"},
+                },
             }
         },
         env={
@@ -36,6 +40,55 @@ def test_detect_context_pr_payload_wins_over_ambient_env() -> None:
     assert ctx.event_name == "pull_request"
     assert ctx.base_sha == "base"
     assert ctx.head_sha == "head"
+    assert ctx.is_cross_repo_pr is False
+
+
+def test_detect_context_cross_repo_pr_detected() -> None:
+    ctx = detect_context(
+        event={
+            "pull_request": {
+                "number": 10,
+                "base": {"sha": "base", "ref": "main", "repo": {"full_name": "org/repo"}},
+                "head": {
+                    "sha": "head",
+                    "ref": "fix",
+                    "repo": {"fork": True, "full_name": "contributor/repo"},
+                },
+            }
+        },
+        env={"GITHUB_REPOSITORY": "org/repo"},
+    )
+
+    assert ctx.is_cross_repo_pr is True
+    assert ctx.is_fork is True
+
+
+def test_detect_context_same_repo_pr_not_cross_repo() -> None:
+    ctx = detect_context(
+        event={
+            "pull_request": {
+                "number": 11,
+                "base": {"sha": "base", "ref": "main", "repo": {"full_name": "org/repo"}},
+                "head": {
+                    "sha": "head",
+                    "ref": "feature",
+                    "repo": {"fork": False, "full_name": "org/repo"},
+                },
+            }
+        },
+        env={"GITHUB_REPOSITORY": "org/repo"},
+    )
+
+    assert ctx.is_cross_repo_pr is False
+
+
+def test_detect_context_push_event_not_cross_repo() -> None:
+    ctx = detect_context(
+        event={"event_name": "push"},
+        env={"GITHUB_EVENT_NAME": "push", "GITHUB_REPOSITORY": "org/repo"},
+    )
+
+    assert ctx.is_cross_repo_pr is False
 
 
 def test_detect_context_explicit_event_name_wins_for_non_pr_event() -> None:

@@ -129,6 +129,15 @@ scan_policy:
     - CKV_AWS_999
 ```
 
+Use `scan_policy` when you want to remove a rule from scope entirely.
+
+- `skip_ids`
+  - the rule is not considered for remediation or final decisioning
+- `include_ids`
+  - only these rules are considered
+
+`scan_policy` is not path-aware. If you want path-specific behavior such as "keep scanning `examples/**`, but make them advisory", use `finding_policy.by_path` instead.
+
 ### `finding_policy`
 
 Use `finding_policy` to control how Sanara treats findings after detection.
@@ -186,6 +195,42 @@ finding_policy:
   suggest_only:
     - CKV_AWS_70
 ```
+
+### Path-based policy for module repos
+
+You can also apply finding behavior by file path.
+
+This is useful for Terraform module repositories where:
+
+- the root module and `modules/**` should remain blocking
+- `examples/**` should still be scanned and reported
+- `examples/**` should not drive remediation PRs by default
+
+Example:
+
+```yaml
+module_repo_defaults: true
+
+finding_policy:
+  by_path:
+    - path: examples/**
+      auto_fix_mode: suggest_only
+      category: module_examples
+```
+
+Notes:
+
+- `module_repo_defaults: true`
+  - injects the recommended default `examples/** -> suggest_only`
+- `finding_policy.by_path`
+  - lets you override or extend behavior per path
+- `suggest_only`
+  - means "show it, but do not edit code for it"
+
+Path rules are applied after the global finding lists, so a matching `by_path` rule
+overrides `auto_fix_allow`, `auto_fix_deny`, and `suggest_only` list entries.
+
+If you want examples to be fully in scope for remediation, omit `module_repo_defaults` and omit the `examples/**` `suggest_only` rule.
 
 ### `environment` and `environments`
 

@@ -23,6 +23,7 @@ class RunContext:
     pr_number: int | None
     pr_branch: str
     is_fork: bool
+    is_cross_repo_pr: bool
     skip: bool
     skip_reason: str | None
 
@@ -66,6 +67,14 @@ def detect_context(event: dict[str, Any], env: dict[str, str]) -> RunContext:
     github_head_ref = str(env.get("GITHUB_HEAD_REF", ""))
     pr_branch = head_ref
     is_fork = bool(pr.get("head", {}).get("repo", {}).get("fork", False))
+    head_repo_name = str(pr.get("head", {}).get("repo", {}).get("full_name", "") or "")
+    base_repo_name = str(pr.get("base", {}).get("repo", {}).get("full_name", "") or "")
+    is_cross_repo_pr = bool(
+        event_name == "pull_request"
+        and head_repo_name
+        and base_repo_name
+        and head_repo_name != base_repo_name
+    )
     pr_number = pr.get("number")
 
     skip = False
@@ -92,6 +101,7 @@ def detect_context(event: dict[str, Any], env: dict[str, str]) -> RunContext:
         pr_number=pr_number,
         pr_branch=pr_branch,
         is_fork=is_fork,
+        is_cross_repo_pr=is_cross_repo_pr,
         skip=skip,
         skip_reason=reason,
     )

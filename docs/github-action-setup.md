@@ -157,16 +157,31 @@ jobs:
 - review `decision_detail.reason_code`
 - check `drc/patch.diff` for unexpected edits
 
+## Fork behavior
+
+Sanara handles fork contexts differently depending on how the workflow is triggered:
+
+- **Cross-repository fork PR** (external contributor opens a PR from their fork to your repo): Sanara cannot push a branch to the upstream repository because the `GITHUB_TOKEN` is restricted by GitHub's security model. Instead, Sanara posts a comment on the PR containing the full diff and instructions to apply it. The contributor applies the patch to their branch manually.
+
+- **Push or PR on the fork itself** (the fork author runs Sanara on their own fork's CI): Sanara has full write access to the fork and creates a remediation PR within the fork as normal.
+
+The distinction is whether the PR head and base come from different repositories, not whether the repository itself is a fork.
+
+## Partial fix behavior
+
+Sanara creates a PR whenever it has made at least one security fix, even if some findings remain. The PR title will include "for review" and the PR body will list any remaining findings. Previously Sanara only created a PR when all findings were fixed.
+
 ## Common reasons no PR is created
 
 - `publish_dry_run: "true"` was enabled for rollout
 - no runnable Terraform harness was available while `plan_required: "true"`
-- no findings produced a valid patch
-- blocking findings still remained after rescan
-- fork or token restrictions prevented publish actions
+- no findings produced a valid patch (no changes to commit)
+- Sanara's patch caused `terraform init` or `validate` to fail on a repo where it was passing before (`tf_regression`)
+- cross-repository fork PR — a diff comment is posted instead
+- `GITHUB_TOKEN` is missing
 - GitHub Actions was not allowed to create pull requests in repository or organization settings
 
-When this happens, inspect `artifacts/run_summary.json` and the uploaded artifacts before changing the workflow.
+When this happens, inspect `artifacts/run_summary.json` and `decision_detail.reason_code` in the uploaded artifacts before changing the workflow.
 
 ## Ongoing operating habits
 

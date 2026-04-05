@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from sanara.utils.command import run_cmd
+from sanara.utils.command import CommandResult, run_cmd
 from sanara.utils.io import read_yaml
 
 
@@ -128,7 +128,10 @@ def _run_one(run: HarnessRun, workspace: Path, run_plan: bool = True) -> dict[st
     init_cmd.extend(run.init_args)
     init = run_cmd(init_cmd, cwd=wd, timeout_seconds=run.timeout_seconds, env=run.env)
     validate_cmd = ["terraform", "validate", *run.validate_args]
-    validate = run_cmd(validate_cmd, cwd=wd, timeout_seconds=run.timeout_seconds, env=run.env)
+    if init.code == 0:
+        validate = run_cmd(validate_cmd, cwd=wd, timeout_seconds=run.timeout_seconds, env=run.env)
+    else:
+        validate = CommandResult(cmd=validate_cmd, code=1, stdout="", stderr="skipped: init failed")
     plan_cmd: list[str] = []
     if run_plan:
         plan_cmd = ["terraform", "plan", f"-refresh={'true' if run.refresh else 'false'}"]

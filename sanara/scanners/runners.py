@@ -70,6 +70,12 @@ def _stderr_preview(stderr: str, limit: int = 240) -> str:
     return f"{text[:limit]}..."
 
 
+def _is_expected_nonzero(tool_name: str, code: int, parse_error: bool) -> bool:
+    # Checkov exits non-zero when findings are present; treat that as expected when
+    # it still returned parseable JSON so action logs stay focused on real failures.
+    return tool_name == "checkov" and code == 1 and not parse_error
+
+
 def _coerce_checkov_payload(payload: Any, *, stderr: str, code: int) -> Any:
     # Normalization keeps downstream stages operating on a predictable shape even
     # when Checkov changes its JSON layout or returns partial output.
@@ -203,7 +209,12 @@ def _scan_target(
         parse_error = False
         exit_code = int(result_code)
         stderr_value = str(result_stderr)
-    log_level = logging.WARNING if parse_error or exit_code != 0 else logging.DEBUG
+    expected_nonzero = _is_expected_nonzero(tool_name, exit_code, parse_error)
+    log_level = (
+        logging.WARNING
+        if parse_error or (exit_code != 0 and not expected_nonzero)
+        else logging.DEBUG
+    )
     logger.log(
         log_level,
         "scanner command complete",
@@ -213,6 +224,7 @@ def _scan_target(
             "workspace": workspace_resolved,
             "code": exit_code,
             "parse_error": parse_error,
+            "expected_nonzero": expected_nonzero,
             "elapsed_ms": elapsed_ms,
             "stderr_preview": _stderr_preview(stderr_value),
         },

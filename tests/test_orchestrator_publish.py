@@ -106,8 +106,15 @@ def test_build_fix_pr_body_includes_marker_and_rules() -> None:
         llm_accepted_attempts=1,
         llm_rejection_counts={"git_apply": 1, "accepted": 1},
         llm_improved_findings=[
-            {"source_rule_id": "CKV_AWS_21", "sanara_rule_id": "aws.s3.versioning_enabled"}
+            {
+                "source_rule_id": "CKV_AWS_21",
+                "sanara_rule_id": "aws.s3.versioning_enabled",
+                "resource_type": "aws_s3_bucket",
+                "resource_name": "data",
+                "file_path": "/s3.tf",
+            }
         ],
+        llm_improved_count=1,
         findings_count=5,
         attempts_count=2,
         changed_attempts=2,
@@ -124,6 +131,10 @@ def test_build_fix_pr_body_includes_marker_and_rules() -> None:
         terraform_validate_ok=True,
         terraform_plan_ok=True,
         policy_overrides_loaded=True,
+        changed_findings=[
+            {"sanara_rule_id": "rule-a"},
+            {"sanara_rule_id": "rule-b"},
+        ],
         advisory_remaining_findings=[
             {"source_rule_id": "CKV_AWS_21", "sanara_rule_id": "aws.s3.versioning_enabled"},
             {"source_rule_id": "CKV_AWS_21", "sanara_rule_id": "aws.s3.versioning_enabled"},
@@ -169,7 +180,7 @@ def test_build_fix_pr_body_includes_marker_and_rules() -> None:
     assert "- Environment: staging" not in body
     assert "## Fixed in This PR by LLM" in body
     assert "- These findings were reduced by accepted LLM-assisted remediation attempts:" in body
-    assert "  - Versioning Enabled (`CKV_AWS_21`)" in body
+    assert "  - Versioning Enabled (`CKV_AWS_21`) on aws_s3_bucket.data in /s3.tf" in body
     assert "## Additional Hardening Suggestions" in body
     assert body.index("## What Still Needs Attention") < body.index(
         "## Additional Hardening Suggestions"
@@ -177,15 +188,20 @@ def test_build_fix_pr_body_includes_marker_and_rules() -> None:
     assert body.index("## Additional Hardening Suggestions") < body.index("## Validation")
     assert "LLM-inferred suggestions are additional hardening ideas" in body
     assert "## What Still Needs Attention" in body
-    assert "Versioning Enabled (`CKV_AWS_21`): 2 instances" in body
-    assert "`CKV_AWS_145` (no friendly labels yet)" in body
-    assert "no transform available" in body
+    assert (
+        "Versioning Enabled (`CKV_AWS_21`): 2 instances — transform available, eligible for auto-fix"
+        in body
+    )
+    assert "`CKV_AWS_145`" in body
+    assert "no transform, manual fix required" in body
+    assert "- Providers represented: AWS (2)." in body
     assert "## How to Auto-Fix More Next Run" not in body
     assert "To enable auto-fix for the eligible findings next run" in body
     assert "finding_policy:" in body
     assert "- CKV_AWS_21" in body
     assert "- CKV_AWS_145" not in body
-    assert "[CRITICAL][LLM]" in body
+    assert "[CRITICAL]" in body
+    assert "[LLM]" not in body
     assert "Account-level S3 public access block is not fully enforced" in body
     assert "workflow artifact: `sanara-artifacts`" in body
     assert "Versioning Enabled (`CKV_AWS_21`)" in body
@@ -208,6 +224,7 @@ def test_build_fix_pr_body_shows_empty_hardening_section_when_no_advisor_finding
         llm_accepted_attempts=0,
         llm_rejection_counts={},
         llm_improved_findings=[],
+        llm_improved_count=0,
         findings_count=1,
         attempts_count=1,
         changed_attempts=1,
@@ -242,6 +259,7 @@ def test_build_fix_pr_body_reflects_skipped_plan_gate() -> None:
         llm_accepted_attempts=0,
         llm_rejection_counts={},
         llm_improved_findings=[],
+        llm_improved_count=0,
         findings_count=1,
         attempts_count=1,
         changed_attempts=1,
@@ -256,10 +274,75 @@ def test_build_fix_pr_body_reflects_skipped_plan_gate() -> None:
     )
     assert "- [x] Terraform fmt" in body
     assert "- [ ] Terraform init / validate / plan skipped" in body
-    assert (
-        "  - Terraform plan gate was intentionally skipped because no runnable harness was configured."
-        in body
+
+
+def test_build_fix_pr_body_pre_existing_tf_failure_note() -> None:
+    # When init/validate actually ran at baseline and failed, the PR body should include the note.
+    payload = {
+        "base_sha": "abc123",
+        "attempted_rule_ids": ["rule-a"],
+        "target_dirs": ["module"],
+        "patch_hash": "hash",
+        "dedup_key": "k",
+    }
+    body_with_failure = build_fix_pr_body(
+        client=_FakeClient(),
+        dedup_payload=payload,
+        attempted_rules={"rule-a"},
+        agentic_enabled=False,
+        llm_attempts=0,
+        llm_accepted_attempts=0,
+        llm_rejection_counts={},
+        llm_improved_findings=[],
+        llm_improved_count=0,
+        findings_count=1,
+        attempts_count=1,
+        changed_attempts=1,
+        no_change_attempts=0,
+        clean=True,
+        blocking_remaining=0,
+        advisory_remaining=0,
+        ignored_remaining=0,
+        baseline_checkov_failed=2,
+        final_checkov_failed=1,
+        plan_required=True,
+        pre_existing_tf_failure=True,
+        terraform_init_ok=True,
+        terraform_validate_ok=True,
+        terraform_plan_ok=True,
     )
+    assert "terraform init" in body_with_failure
+    assert "already failing on the base branch" in body_with_failure
+
+    # When the baseline run never executed terraform (e.g. working_dir_missing),
+    # pre_existing_tf_failure is False and the note must NOT appear.
+    body_no_failure = build_fix_pr_body(
+        client=_FakeClient(),
+        dedup_payload=payload,
+        attempted_rules={"rule-a"},
+        agentic_enabled=False,
+        llm_attempts=0,
+        llm_accepted_attempts=0,
+        llm_rejection_counts={},
+        llm_improved_findings=[],
+        llm_improved_count=0,
+        findings_count=1,
+        attempts_count=1,
+        changed_attempts=1,
+        no_change_attempts=0,
+        clean=True,
+        blocking_remaining=0,
+        advisory_remaining=0,
+        ignored_remaining=0,
+        baseline_checkov_failed=2,
+        final_checkov_failed=1,
+        plan_required=True,
+        pre_existing_tf_failure=False,
+        terraform_init_ok=True,
+        terraform_validate_ok=True,
+        terraform_plan_ok=True,
+    )
+    assert "already failing on the base branch" not in body_no_failure
 
 
 def test_build_fix_pr_body_suppresses_superseded_auto_fix_suggestion() -> None:
@@ -299,5 +382,92 @@ def test_build_fix_pr_body_suppresses_superseded_auto_fix_suggestion() -> None:
     assert "    - CKV_AWS_20" not in body
     # A conflict warning must be shown instead, inline in "What Still Needs Attention"
     assert "CKV_AWS_20" in body
-    assert "Not eligible for auto-fix" in body
-    assert "conflicting fix was already applied" in body
+    assert "not eligible" in body
+    assert "conflicting fix already applied" in body
+
+
+def test_build_fix_pr_body_uses_changed_rules_not_attempted_rules() -> None:
+    payload = {
+        "base_sha": "abc123",
+        "attempted_rule_ids": ["aws.s3.versioning_enabled", "aws.kms.rotation_enabled"],
+        "target_dirs": ["module"],
+        "patch_hash": "hash",
+        "dedup_key": "k",
+    }
+    body = build_fix_pr_body(
+        client=_FakeClient(),
+        dedup_payload=payload,
+        attempted_rules={"aws.s3.versioning_enabled", "aws.kms.rotation_enabled"},
+        agentic_enabled=False,
+        llm_attempts=0,
+        llm_accepted_attempts=0,
+        llm_rejection_counts={},
+        llm_improved_findings=[],
+        findings_count=5,
+        attempts_count=2,
+        changed_attempts=1,
+        no_change_attempts=1,
+        clean=False,
+        blocking_remaining=1,
+        advisory_remaining=0,
+        ignored_remaining=0,
+        changed_findings=[
+            {"sanara_rule_id": "aws.s3.versioning_enabled"},
+        ],
+    )
+    assert "Versioning Enabled" in body
+    assert "Rotation Enabled" not in body
+
+
+def test_build_fix_pr_body_marks_by_path_advisory_findings_as_policy_excluded() -> None:
+    payload = {
+        "base_sha": "abc123",
+        "attempted_rule_ids": ["aws.s3.versioning_enabled"],
+        "target_dirs": ["module"],
+        "patch_hash": "hash",
+        "dedup_key": "k",
+    }
+    body = build_fix_pr_body(
+        client=_FakeClient(),
+        dedup_payload=payload,
+        attempted_rules={"aws.s3.versioning_enabled"},
+        agentic_enabled=False,
+        llm_attempts=0,
+        llm_accepted_attempts=0,
+        llm_rejection_counts={},
+        llm_improved_findings=[],
+        findings_count=5,
+        attempts_count=1,
+        changed_attempts=1,
+        no_change_attempts=0,
+        clean=False,
+        blocking_remaining=1,
+        advisory_remaining=2,
+        ignored_remaining=0,
+        changed_findings=[
+            {"sanara_rule_id": "aws.s3.versioning_enabled"},
+        ],
+        advisory_remaining_findings=[
+            {
+                "source_rule_id": "CKV_AWS_7",
+                "sanara_rule_id": "aws.kms.rotation_enabled",
+                "policy": {
+                    "auto_fix_mode": "suggest_only",
+                    "matched_policy_source": "by_path[0]",
+                },
+            },
+            {
+                "source_rule_id": "CKV2_AWS_64",
+                "sanara_rule_id": "aws.kms.policy_present",
+                "policy": {
+                    "auto_fix_mode": "suggest_only",
+                    "matched_policy_source": "by_path[0]",
+                },
+            },
+        ],
+    )
+    assert "- Intentionally left advisory by policy: 2" in body
+    assert "intentionally left unchanged by policy" in body
+    assert "currently held back by path policy" in body
+    assert "    - CKV_AWS_7" not in body
+    assert "    - CKV2_AWS_64" not in body

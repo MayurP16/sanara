@@ -64,6 +64,7 @@ REQUIRED_ARTIFACTS = [
     "baseline/normalized_findings.json",
     "drc/patch.diff",
     "drc/patch_contract.json",
+    "terraform/baseline_checks.json",
     "terraform/fmt.log",
     "terraform/init.log",
     "terraform/validate.log",
@@ -90,6 +91,7 @@ ALLOWED_REASON_CODES = {
     "no_changes",
     "remaining_findings",
     "tf_checks_failed",
+    "tf_regression",
     "missing_harness",
     "runtime_budget",
     "git_failure",
@@ -139,7 +141,15 @@ def _transition(
 
 
 def _git_diff(workspace: Path) -> str:
-    return run_cmd(["git", "diff"], cwd=workspace).stdout
+    # Mark new untracked .tf files with intent-to-add so they appear in git diff HEAD.
+    # This is non-destructive: does not stage file content, only registers the path.
+    untracked = run_cmd(
+        ["git", "ls-files", "--others", "--exclude-standard"], cwd=workspace
+    ).stdout.strip()
+    tf_untracked = [f for f in untracked.splitlines() if f.endswith(".tf")]
+    if tf_untracked:
+        run_cmd(["git", "add", "--intent-to-add", "--"] + tf_untracked, cwd=workspace)
+    return run_cmd(["git", "diff", "HEAD"], cwd=workspace).stdout
 
 
 def _first_nonempty_line(text: str) -> str:
@@ -249,6 +259,31 @@ def _write_terraform_logs(
     write_text(artifacts_dir, "terraform/plan.log", "\n\n".join(plan_logs))
 
 
+def _log_preview(text: str, max_lines: int = 8, max_chars: int = 500) -> str:
+    payload = str(text or "").strip()
+    if not payload:
+        return ""
+    lines = payload.splitlines()[:max_lines]
+    preview = "\n".join(lines)
+    if len(preview) > max_chars:
+        preview = preview[:max_chars] + "..."
+    return preview
+
+
+def _log_tf_phase(
+    logger: logging.Logger, prefix: str, phase_name: str, phase: dict[str, Any]
+) -> None:
+    code = phase.get("code")
+    cmd = " ".join(str(x) for x in phase.get("cmd", []))
+    stdout_preview = _log_preview(phase.get("stdout", ""))
+    stderr_preview = _log_preview(phase.get("stderr", ""))
+    logger.info("%s %s code=%s cmd=%s", prefix, phase_name, code, cmd)
+    if stdout_preview:
+        logger.info("%s %s stdout_preview:\n%s", prefix, phase_name, stdout_preview)
+    if stderr_preview:
+        logger.info("%s %s stderr_preview:\n%s", prefix, phase_name, stderr_preview)
+
+
 def _validate_findings_schema(normalized: list[dict[str, Any]]) -> None:
     schema = SCHEMAS_DIR / "sanara.finding.v0.1.json"
     for finding in normalized:
@@ -277,13 +312,78 @@ def _parse_checkov_resource(resource: str) -> tuple[str, str]:
     value = (resource or "").strip()
     if not value:
         return "", ""
-    if value.count(".") == 2:
-        p0, p1, p2 = value.split(".")
-        value = f"{p0}_{p1}.{p2}"
+    parts = [p for p in value.split(".") if p]
+    collapsed: list[str] = []
+    i = 0
+    while i < len(parts):
+        if parts[i] == "module" and i + 1 < len(parts):
+            i += 2
+            continue
+        collapsed.append(parts[i])
+        i += 1
+    if len(collapsed) >= 2:
+        resource_name = re.sub(r"\[[^\]]+\]$", "", collapsed[-1])
+        value = f"{collapsed[-2]}.{resource_name}"
     match = re.match(r"^(?P<rtype>[a-zA-Z0-9_]+)\.(?P<rname>[a-zA-Z0-9_\\-]+)$", value)
     if not match:
         return "", ""
     return match.group("rtype"), match.group("rname")
+
+
+def _tf_run_identity(run: dict[str, Any]) -> str:
+    return f"{run.get('name', '')}|{run.get('working_dir', '')}"
+
+
+def _tf_run_failure(run: dict[str, Any]) -> dict[str, str]:
+    for phase_name in ("init", "validate", "plan"):
+        phase = run.get(phase_name, {})
+        if phase_name not in run:
+            continue
+        if int(phase.get("code", 0) or 0) == 0:
+            continue
+        detail = _log_preview(phase.get("stderr", "") or phase.get("stdout", ""), max_chars=300)
+        return {
+            "phase": phase_name,
+            "code": str(phase.get("code", "")),
+            "detail": detail,
+            "signature": f"{phase_name}|{detail}",
+        }
+    return {}
+
+
+def _terraform_delta_summary(
+    baseline_tf: dict[str, Any],
+    current_tf: dict[str, Any],
+) -> dict[str, Any]:
+    baseline_runs = {
+        _tf_run_identity(run): _tf_run_failure(run)
+        for run in baseline_tf.get("runs", [])
+        if isinstance(run, dict)
+    }
+    current_runs = {
+        _tf_run_identity(run): _tf_run_failure(run)
+        for run in current_tf.get("runs", [])
+        if isinstance(run, dict)
+    }
+    changed_failures: list[dict[str, str]] = []
+    unchanged_failures: list[dict[str, str]] = []
+    for run_id, current_failure in current_runs.items():
+        if not current_failure:
+            continue
+        baseline_failure = baseline_runs.get(run_id, {})
+        if not baseline_failure:
+            changed_failures.append({"run_id": run_id, **current_failure})
+            continue
+        if baseline_failure.get("signature") == current_failure.get("signature"):
+            unchanged_failures.append({"run_id": run_id, **current_failure})
+            continue
+        changed_failures.append({"run_id": run_id, **current_failure})
+    return {
+        "tf_regression": bool(changed_failures),
+        "pre_existing_tf_failure": bool(unchanged_failures),
+        "changed_failures": changed_failures,
+        "unchanged_failures": unchanged_failures,
+    }
 
 
 def _checkov_failed_items(checkov_payload: dict[str, Any]) -> list[dict[str, Any]]:
@@ -884,6 +984,40 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
         policy_review=baseline_mapped_policy_review,
     )
 
+    baseline_tf = _t(
+        "TF_BASELINE_CHECKS",
+        lambda: run_harness_checks(
+            workspace,
+            workspace / ".sanara/harness.yml",
+            run_plan=False,
+        ),
+    )
+    write_json_file(artifacts_dir, "terraform/baseline_checks.json", baseline_tf.to_dict())
+    _LOG.info(
+        "terraform baseline checks ok=%s runs=%d",
+        baseline_tf.ok,
+        len(baseline_tf.runs),
+    )
+    for _run in baseline_tf.to_dict().get("runs", []):
+        if "init" not in _run:
+            _LOG.info(
+                "terraform baseline run name=%s error=%s working_dir=%s",
+                _run.get("name", "unknown"),
+                _run.get("error", "unknown"),
+                _run.get("working_dir", ""),
+            )
+            continue
+        _init = _run.get("init", {})
+        _validate = _run.get("validate", {})
+        _LOG.info(
+            "terraform baseline run name=%s source=%s working_dir=%s",
+            _run.get("name", "unknown"),
+            _run.get("source", "unknown"),
+            _run.get("working_dir", ""),
+        )
+        _log_tf_phase(_LOG, "terraform baseline", "init", _init)
+        _log_tf_phase(_LOG, "terraform baseline", "validate", _validate)
+
     repair_phase = _phase_repair(
         logger=logger,
         workspace=workspace,
@@ -963,33 +1097,9 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
                 run.get("source", "unknown"),
                 run.get("working_dir", ""),
             )
-            _LOG.info(
-                "terraform init code=%s cmd=%s",
-                init_phase.get("code"),
-                " ".join(str(x) for x in init_phase.get("cmd", [])),
-            )
-            if str(init_phase.get("stdout", "")).strip():
-                _LOG.info("terraform init stdout:\n%s", init_phase.get("stdout", ""))
-            if str(init_phase.get("stderr", "")).strip():
-                _LOG.info("terraform init stderr:\n%s", init_phase.get("stderr", ""))
-            _LOG.info(
-                "terraform validate code=%s cmd=%s",
-                validate_phase.get("code"),
-                " ".join(str(x) for x in validate_phase.get("cmd", [])),
-            )
-            if str(validate_phase.get("stdout", "")).strip():
-                _LOG.info("terraform validate stdout:\n%s", validate_phase.get("stdout", ""))
-            if str(validate_phase.get("stderr", "")).strip():
-                _LOG.info("terraform validate stderr:\n%s", validate_phase.get("stderr", ""))
-            _LOG.info(
-                "terraform plan code=%s cmd=%s",
-                plan_phase.get("code"),
-                " ".join(str(x) for x in plan_phase.get("cmd", [])),
-            )
-            if str(plan_phase.get("stdout", "")).strip():
-                _LOG.info("terraform plan stdout:\n%s", plan_phase.get("stdout", ""))
-            if str(plan_phase.get("stderr", "")).strip():
-                _LOG.info("terraform plan stderr:\n%s", plan_phase.get("stderr", ""))
+            _log_tf_phase(_LOG, "terraform", "init", init_phase)
+            _log_tf_phase(_LOG, "terraform", "validate", validate_phase)
+            _log_tf_phase(_LOG, "terraform", "plan", plan_phase)
         if inferred_root_runs:
             _LOG.info(
                 "terraform checks used inferred root fallback because no explicit harness was configured"
@@ -1055,6 +1165,7 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
     llm_accepted_attempts = 0
     llm_rejection_counts: dict[str, int] = {}
     llm_improved_findings: list[dict[str, str]] = []
+    llm_improved_count = 0
     agentic_feedback = ""
     final_checkov_failed = rescan_checkov_failed
     advisory_remaining_final = run_state.advisory_remaining
@@ -1087,6 +1198,7 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
                         "attempt": int(entry.get("attempt", 0) or 0),
                         "stage": stage,
                         "reason": str(entry.get("rejection_reason", "")).strip(),
+                        "terraform_gate": str(entry.get("terraform_gate", "")).strip(),
                         "target_file": str(entry.get("target_file", "")).strip(),
                         "target_file_exists_before": bool(
                             entry.get("target_file_exists_before", False)
@@ -1105,7 +1217,7 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
             "top_rejections": top_rejections,
         }
 
-    if not run_state.clean and policy.allow_agentic and not context.is_fork:
+    if not run_state.clean and policy.allow_agentic:
         agentic_used = True
         _LOG.info(
             "agentic start blocking_total=%d remaining_mapped=%d remaining_uncovered=%d",
@@ -1131,7 +1243,9 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
                 write_terraform_logs=lambda tf, fmt_out, fmt_err: _write_terraform_logs(
                     artifacts_dir, tf, fmt_out, fmt_err
                 ),
+                baseline_tf_checks=baseline_tf.to_dict(),
                 max_total_attempts=policy.agentic_max_attempts,
+                run_deadline_epoch=run_start + policy.max_runtime_seconds,
             ),
         )
         run_state.diff = agentic_result.diff
@@ -1147,17 +1261,27 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
         llm_accepted_attempts = sum(
             1 for entry in agentic_result.agentic_ledgers if bool(entry.get("accepted_patch"))
         )
-        improved_map: dict[str, dict[str, str]] = {}
+        llm_improved_count = sum(
+            1
+            for entry in agentic_result.agentic_ledgers
+            if bool(entry.get("accepted_patch")) and bool(entry.get("progressed"))
+        )
+        improved_map: dict[tuple[str, str, str, str], dict[str, str]] = {}
         for entry in agentic_result.agentic_ledgers:
             if not (bool(entry.get("accepted_patch")) and bool(entry.get("progressed"))):
                 continue
             finding = entry.get("finding") or {}
+            finding_key = _finding_key(finding) if finding else ("", "", "", "")
             source_rule_id = str(finding.get("source_rule_id", "")).strip().upper()
-            if not source_rule_id:
+            if not source_rule_id or not any(finding_key):
                 continue
-            improved_map[source_rule_id] = {
+            target = finding.get("target") or {}
+            improved_map[finding_key] = {
                 "source_rule_id": source_rule_id,
                 "sanara_rule_id": str(finding.get("sanara_rule_id", "")).strip(),
+                "resource_type": str(finding.get("resource_type", "")).strip(),
+                "resource_name": str(finding.get("resource_name", "")).strip(),
+                "file_path": str(target.get("file_path", "")).strip(),
             }
         llm_improved_findings = [improved_map[k] for k in sorted(improved_map)]
         agentic_feedback = agentic_result.feedback
@@ -1205,7 +1329,7 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
             llm_attempts,
             llm_accepted_attempts,
             clean,
-            len(run_state.candidate_remaining),
+            len(run_state.blocking_remaining),
             (agentic_result.feedback or "").strip()[:200],
         )
         _LOG.info("agentic rejection_counts=%s", llm_rejection_counts)
@@ -1347,6 +1471,10 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
     agentic_raw_checkov_delta = rescan_checkov_failed - final_checkov_failed
 
     _run_final_terraform_checks()
+    # terraform fmt (run inside _run_final_terraform_checks) may reformat files such as
+    # fixing quoted type constraints.  Refresh the diff so those changes are captured in
+    # the PR patch and the fork diff comment.
+    run_state.diff = _git_diff(workspace)
     if not tf_checks.runs:
         if policy.plan_required:
             return _exit_comment_only(
@@ -1371,7 +1499,23 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
             "plan_required=false opt-in active; no harness found; plan gate skipped.\n",
         )
 
-    if tf_checks.runs and not tf_checks.ok:
+    # Delta gate: only block if sanara introduced a regression.
+    # Pre-existing failures (baseline already failing) are noted in the PR body but do not block.
+    # A run that hit working_dir_missing or another structural error won't have an "init" key —
+    # only treat it as a pre-existing terraform failure when init/validate actually ran and failed.
+    tf_delta = _terraform_delta_summary(baseline_tf.to_dict(), tf_dict)
+    tf_regression = bool(tf_delta["tf_regression"])
+    pre_existing_tf_failure = bool(tf_delta["pre_existing_tf_failure"])
+    _LOG.info(
+        "terraform delta gate tf_regression=%s pre_existing_tf_failure=%s baseline_ok=%s post_ok=%s changed_failures=%d unchanged_failures=%d",
+        tf_regression,
+        pre_existing_tf_failure,
+        baseline_tf.ok,
+        tf_checks.ok,
+        len(tf_delta["changed_failures"]),
+        len(tf_delta["unchanged_failures"]),
+    )
+    if tf_regression:
         return _exit_comment_only(
             logger=logger,
             artifacts_dir=artifacts_dir,
@@ -1379,10 +1523,9 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
             target_dirs=target_dirs,
             normalized=normalized,
             attempts_dict=attempts_dict,
-            reason="tf_checks_failed",
-            reason_message="Terraform init/validate/plan gates failed.",
+            reason="tf_regression",
+            reason_message="Sanara's patch caused terraform checks to fail. This is a DRC bug; no PR created.",
             client=client,
-            comment="Sanara did not create a fix PR. Terraform validation gates failed. See artifacts.",
             agentic_summary=_agentic_summary_payload(),
             terraform_summary=tf_dict,
             phase_timings_ms=phase_timings_ms,
@@ -1428,7 +1571,25 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
     _t("DECIDE", lambda: None)
     final_state = FinalState(decision="COMMENT_ONLY", reason_code="unknown")
 
-    if clean and diff.strip() and not context.is_fork and client and _has_changes(workspace):
+    # Sync diff from run_state in case cleanup phases updated it after the initial DRC capture.
+    diff = run_state.diff
+
+    has_diff = bool(diff.strip() and _has_changes(workspace))
+
+    # Cross-repo fork PR: can't push to upstream or fork, post rich diff comment instead.
+    if context.is_cross_repo_pr and has_diff and client:
+        from sanara.orchestrator.publish import build_fork_diff_comment
+
+        fork_comment = build_fork_diff_comment(
+            diff=diff,
+            findings_count=len(normalized),
+            changed_attempts=drc_changed_attempts,
+            remaining_count=len(run_state.blocking_remaining),
+        )
+        _post_comment_if_possible(client, context.pr_number, fork_comment)
+        _LOG.info("decision=FORK_DIFF_COMMENT reason=fork_restriction has_diff=True")
+
+    if has_diff and not context.is_cross_repo_pr and client:
         _t("DEDUP_CHECK", lambda: None)
         dedup_payload = build_dedup_payload(
             client=client,
@@ -1510,6 +1671,7 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
             llm_accepted_attempts=llm_accepted_attempts,
             llm_rejection_counts=llm_rejection_counts,
             llm_improved_findings=llm_improved_findings,
+            llm_improved_count=llm_improved_count,
             findings_count=len(normalized),
             attempts_count=len(attempts_dict),
             changed_attempts=drc_changed_attempts,
@@ -1524,8 +1686,15 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
             environment=policy.environment,
             policy_overrides_loaded=policy_overrides_loaded,
             advisory_remaining_findings=advisory_remaining_final,
+            changed_findings=[
+                {"sanara_rule_id": str(a.get("sanara_rule_id", "")).strip()}
+                for a in attempts_dict
+                if str(a.get("status", "")).strip() == "changed"
+                and str(a.get("sanara_rule_id", "")).strip()
+            ],
             advisor_findings=advisor_findings,
             checkov_to_sanara=mapping,
+            pre_existing_tf_failure=pre_existing_tf_failure,
             terraform_init_ok=(
                 all(r.get("init", {}).get("code") == 0 for r in tf_checks.runs)
                 if tf_checks.runs
@@ -1538,20 +1707,20 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
             ),
             terraform_plan_ok=(
                 all(r.get("plan", {}).get("code") == 0 for r in tf_checks.runs)
-                if tf_checks.runs
+                if tf_checks.runs and policy.plan_required
                 else None
             ),
         )
         _t(
             "PR_CREATE",
             lambda: client.create_pr(
-                build_fix_pr_title(drc_changed_attempts, clean, len(llm_improved_findings)),
+                build_fix_pr_title(drc_changed_attempts, clean, llm_improved_count),
                 body,
                 branch,
-                context.pr_branch or "main",
+                context.base_ref or context.github_ref_name or "main",
             ),
         )
-        _LOG.info("decision=PR_CREATED reason=pr_created")
+        _LOG.info("decision=PR_CREATED reason=pr_created clean=%s", clean)
         _write_run_summary(
             artifacts_dir,
             context,
@@ -1570,28 +1739,19 @@ def run_driver(workspace: Path, event_path: Path, artifacts_dir: Path) -> int:
     else:
         reason_code = "unknown"
         reason_message = "PR not created."
-        if not clean:
-            reason_code = "remaining_findings"
-            reason_message = "Targeted rescan is not clean after remediation."
-        elif not diff.strip() or not _has_changes(workspace):
+        if not has_diff:
             reason_code = "no_changes"
             reason_message = "No repository changes to publish."
-        elif context.is_fork:
+        elif context.is_cross_repo_pr:
             reason_code = "fork_restriction"
-            reason_message = "Fork PR context disables branch push and PR creation."
+            reason_message = "Cross-repo fork PR: diff comment posted, branch push skipped."
         elif not client:
             reason_code = "missing_github_token"
             reason_message = "GITHUB_TOKEN is missing; cannot publish branch or PR."
-        _post_comment_if_possible(
-            client,
-            context.pr_number,
-            f"Sanara did not create a fix PR. reason={reason_code}. See artifacts for details.",
-        )
         _LOG.info(
-            "decision=COMMENT_ONLY reason=%s clean=%s has_diff=%s",
+            "decision=NO_PR reason=%s has_diff=%s",
             reason_code,
-            clean,
-            bool(diff.strip()),
+            has_diff,
         )
         _t("COMMENT_ONLY", lambda: None)
         _write_run_summary(

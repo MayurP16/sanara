@@ -94,18 +94,39 @@ def _call_anthropic(
     api_key: str, model: str, payload_prompt: str, json_mode: bool = False
 ) -> tuple[bool, str, str, int]:
     """Call Anthropic's messages API and return a normalized success tuple."""
-    system = (
-        "You are a security analysis tool. Respond with valid JSON only, no prose or markdown."
-        if json_mode
-        else None
-    )
+    if json_mode:
+        system = (
+            "You are a security analysis tool. Respond with valid JSON only, no prose or markdown."
+        )
+    else:
+        system = (
+            "You are the LLM remediation component of Sanara, an automated Terraform security "
+            "remediation system that runs as a GitHub Action. "
+            "Sanara scans infrastructure-as-code with Checkov to find security misconfigurations, "
+            "then applies deterministic fixes via its Deterministic Remediation Compiler (DRC) for "
+            "well-known patterns. You handle the remaining findings that the DRC could not fix — "
+            "cases that require reasoning about the specific resource configuration.\n\n"
+            "Your job: given a set of failing Checkov findings and the current Terraform source files, "
+            "produce a git unified diff that fixes ONLY those findings. The diff will be applied with "
+            "'git apply', then validated with 'terraform init' and 'terraform validate', and finally "
+            "re-scanned with Checkov to confirm the findings are cleared. If any step fails, the patch "
+            "is rejected.\n\n"
+            "Constraints:\n"
+            "- The DRC may have already modified some files. Your patch must be additive and compatible "
+            "with those changes — do not re-apply or conflict with them.\n"
+            "- Your patch must produce syntactically valid HCL that passes terraform validate.\n"
+            "- Only modify the files listed in the prompt. Do not touch unrelated resources.\n"
+            "- When adding a new companion resource block, append it at the END of the file.\n\n"
+            "Output format:\n"
+            "- Return ONLY the raw unified diff text, starting with 'diff --git'.\n"
+            "- No markdown code fences, no explanations, no prose before or after the diff."
+        )
     body: dict[str, Any] = {
         "model": model,
         "max_tokens": 6000,
         "messages": [{"role": "user", "content": payload_prompt}],
     }
-    if system:
-        body["system"] = system
+    body["system"] = system
     r = requests.post(
         "https://api.anthropic.com/v1/messages",
         headers={
@@ -140,9 +161,39 @@ def _call_openai_compat(
     provider_name = next(
         (k for k, v in _OPENAI_COMPAT_BASE_URLS.items() if v == base_url), "openai-compat"
     )
+    if json_mode:
+        system = (
+            "You are a security analysis tool. Respond with valid JSON only, no prose or markdown."
+        )
+    else:
+        system = (
+            "You are the LLM remediation component of Sanara, an automated Terraform security "
+            "remediation system that runs as a GitHub Action. "
+            "Sanara scans infrastructure-as-code with Checkov to find security misconfigurations, "
+            "then applies deterministic fixes via its Deterministic Remediation Compiler (DRC) for "
+            "well-known patterns. You handle the remaining findings that the DRC could not fix — "
+            "cases that require reasoning about the specific resource configuration.\n\n"
+            "Your job: given a set of failing Checkov findings and the current Terraform source files, "
+            "produce a git unified diff that fixes ONLY those findings. The diff will be applied with "
+            "'git apply', then validated with 'terraform init' and 'terraform validate', and finally "
+            "re-scanned with Checkov to confirm the findings are cleared. If any step fails, the patch "
+            "is rejected.\n\n"
+            "Constraints:\n"
+            "- The DRC may have already modified some files. Your patch must be additive and compatible "
+            "with those changes — do not re-apply or conflict with them.\n"
+            "- Your patch must produce syntactically valid HCL that passes terraform validate.\n"
+            "- Only modify the files listed in the prompt. Do not touch unrelated resources.\n"
+            "- When adding a new companion resource block, append it at the END of the file.\n\n"
+            "Output format:\n"
+            "- Return ONLY the raw unified diff text, starting with 'diff --git'.\n"
+            "- No markdown code fences, no explanations, no prose before or after the diff."
+        )
     body: dict[str, Any] = {
         "model": model,
-        "messages": [{"role": "user", "content": payload_prompt}],
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": payload_prompt},
+        ],
         "temperature": 0,
     }
     if json_mode:
@@ -232,7 +283,7 @@ def run_agentic_fallback(
         text = _redact_text(f.read_text(encoding="utf-8"))
         next_chunk = f"# FILE {f.relative_to(workspace)}\n{text}"
         if total_chars + len(next_chunk) > max_chars:
-            break
+            continue
         sent.append(
             {
                 "path": str(f.relative_to(workspace)),
